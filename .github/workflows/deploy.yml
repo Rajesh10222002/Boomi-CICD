@@ -4,6 +4,10 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: boomi-release-${{ github.repository }}
+  cancel-in-progress: false
+
 on:
   workflow_dispatch:
     inputs:
@@ -46,6 +50,8 @@ env:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     outputs:
       release-target: ${{ steps.release.outputs.target }}
       issue-number: ${{ steps.release.outputs.issue }}
@@ -59,6 +65,9 @@ jobs:
         run: |
           echo "target=$(python scripts/boomi.py target)" >> "$GITHUB_OUTPUT"
           echo "issue=$(python scripts/boomi.py issue)" >> "$GITHUB_OUTPUT"
+      - name: Record workflow start
+        if: steps.release.outputs.issue != ''
+        run: gh issue comment "${{ steps.release.outputs.issue }}" --body "Deployment workflow started. Waiting for DV approval. [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})."
 
   wait-for-dv-approval:
     runs-on: ubuntu-latest
@@ -77,10 +86,15 @@ jobs:
           fi
       - name: DV deployment approved
         run: echo "DV deployment approved by GitHub environment reviewer."
+      - name: Record DV approval
+        if: needs.prepare.outputs.issue-number != ''
+        run: gh issue comment "${{ needs.prepare.outputs.issue-number }}" --body "DV approval completed. Package creation can begin."
 
   package:
     runs-on: ubuntu-latest
     needs: [prepare, wait-for-dv-approval]
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -94,10 +108,15 @@ jobs:
           name: boomi-packages
           path: packages.json
           if-no-files-found: error
+      - name: Record package creation
+        if: needs.prepare.outputs.issue-number != ''
+        run: gh issue comment "${{ needs.prepare.outputs.issue-number }}" --body "Immutable package created once and saved as the workflow artifact. Deploying that package to DV."
 
   deploy-dev:
     runs-on: ubuntu-latest
-    needs: package
+    needs: [prepare, package]
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -109,6 +128,11 @@ jobs:
           name: boomi-packages
       - name: Deploy to Dev
         run: python scripts/boomi.py deploy dev
+      - name: Validate Dev deployment
+        run: python scripts/boomi.py validate dev
+      - name: Record Dev validation
+        if: needs.prepare.outputs.issue-number != ''
+        run: gh issue comment "${{ needs.prepare.outputs.issue-number }}" --body "DV deployment completed and the exact package ID was verified active."
 
   wait-for-pd-approval:
     runs-on: ubuntu-latest
@@ -128,11 +152,16 @@ jobs:
           fi
       - name: PD deployment approved
         run: echo "PD deployment approved by GitHub environment reviewer."
+      - name: Record PD approval
+        if: needs.prepare.outputs.issue-number != ''
+        run: gh issue comment "${{ needs.prepare.outputs.issue-number }}" --body "PD approval completed. Promoting the same immutable package used in DV."
 
   deploy-prod:
     runs-on: ubuntu-latest
     needs: [prepare, package, deploy-dev, wait-for-pd-approval]
     if: needs.prepare.outputs.release-target == 'dev-and-production'
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -144,6 +173,11 @@ jobs:
           name: boomi-packages
       - name: Deploy to Prod
         run: python scripts/boomi.py deploy prod
+      - name: Validate Prod deployment
+        run: python scripts/boomi.py validate prod
+      - name: Record Prod validation
+        if: needs.prepare.outputs.issue-number != ''
+        run: gh issue comment "${{ needs.prepare.outputs.issue-number }}" --body "PD deployment completed and the exact DV-tested package ID was verified active."
 
   close-release-issue:
     runs-on: ubuntu-latest

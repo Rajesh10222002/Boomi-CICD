@@ -14,7 +14,9 @@ function fakeServices() {
     versions: async () => ["1.0", "1.1"],
     runs: async () => [],
     pending: async () => [],
+    rollbackCandidates: async () => [{ packageId: "old-package", packageVersion: "1.0", deployedDate: null }],
     deploy: async (body) => ({ message: "Deployment requested.", received: body, issue: { number: 7, url: "https://github.example/issues/7" } }),
+    rollback: async (body) => ({ message: "Rollback requested.", received: body, issue: { number: 8, url: "https://github.example/issues/8" } }),
   };
 }
 
@@ -88,6 +90,52 @@ test("deployed packages resolve names from component metadata", async () => {
   assert.equal(result[0].deployments[0].componentName, "Process A");
 });
 
+test("rollback candidates contain only distinct inactive packages", async () => {
+  const serviceEnv = {
+    BOOMI_ACCOUNT_ID: "account",
+    BOOMI_USERNAME: "user@example.com",
+    BOOMI_TOKEN: "token",
+    GITHUB_OWNER: "owner",
+    GITHUB_REPO: "repo",
+    GITHUB_TOKEN: "github-token",
+  };
+  const fetchImpl = async (url) => {
+    if (url.endsWith("/Environment/query")) return Response.json({ result: [{ id: "dev-id", name: "DV", classification: "TEST" }] });
+    if (url.endsWith("/ComponentMetadata/query")) return Response.json({ result: [{ componentId: "process-id", name: "Process A", type: "process", version: 2, deleted: false }] });
+    if (url.endsWith("/DeployedPackage/query")) return Response.json({ result: [
+      { packageId: "active-id", packageVersion: "2.0", active: true },
+      { packageId: "active-id", packageVersion: "2.0", active: false, deployedDate: "2026-06-01T00:00:00Z" },
+      { packageId: "old-id", packageVersion: "1.0", active: false, deployedDate: "2026-08-01T00:00:00Z" },
+      { packageId: "old-id", packageVersion: "1.0", active: false, deployedDate: "2026-07-01T00:00:00Z" },
+    ] });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  const candidates = await createServices(serviceEnv, fetchImpl).rollbackCandidates("process-id", "dev-id");
+  assert.deepEqual(candidates.map((candidate) => candidate.packageId), ["old-id"]);
+});
+
+test("workflow history joins release issue and duration", async () => {
+  const serviceEnv = {
+    BOOMI_ACCOUNT_ID: "account",
+    BOOMI_USERNAME: "user@example.com",
+    BOOMI_TOKEN: "token",
+    GITHUB_OWNER: "owner",
+    GITHUB_REPO: "repo",
+    GITHUB_TOKEN: "github-token",
+  };
+  const fetchImpl = async (url) => {
+    if (url.includes("/actions/workflows/deploy.yml/runs")) return Response.json({ workflow_runs: [{ id: 10, run_number: 4, display_title: "Release Process A 2.0 (#12)", status: "completed", conclusion: "success", created_at: "2026-09-01T10:00:00Z", updated_at: "2026-09-01T10:01:05Z", html_url: "https://github.example/run/10", actor: { login: "operator" }, head_branch: "main" }] });
+    if (url.includes("/actions/workflows/rollback.yml/runs")) return Response.json({ workflow_runs: [] });
+    if (url.includes("/issues?state=all")) return Response.json([{ number: 12, state: "closed", html_url: "https://github.example/issues/12", body: "**Release path:** dev-and-production" }]);
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  const runs = await createServices(serviceEnv, fetchImpl).runs();
+  assert.equal(runs[0].durationMs, 65000);
+  assert.deepEqual(runs[0].issue, { number: 12, url: "https://github.example/issues/12", state: "closed", target: "dev-and-production" });
+});
+
 test("deploy creates an audit issue and commits a one-component release", async () => {
   const serviceEnv = {
     BOOMI_ACCOUNT_ID: "account",
@@ -153,6 +201,19 @@ test("deploy endpoint returns accepted response", async () => {
   await withServer(async (baseUrl) => {
     const body = { componentId: "component-id", version: "1.2", target: "dev", notes: "Ready" };
     const response = await fetch(`${baseUrl}/api/deploy`, {
+      method: "POST",
+      headers: { Authorization: authorization, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    assert.equal(response.status, 202);
+    assert.deepEqual((await response.json()).received, body);
+  });
+});
+
+test("rollback endpoint returns accepted response", async () => {
+  await withServer(async (baseUrl) => {
+    const body = { componentId: "component-id", environmentId: "dev-id", packageId: "old-package" };
+    const response = await fetch(`${baseUrl}/api/rollback`, {
       method: "POST",
       headers: { Authorization: authorization, "Content-Type": "application/json" },
       body: JSON.stringify(body),

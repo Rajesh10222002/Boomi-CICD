@@ -128,6 +128,26 @@ timestamps, and package versions. They intentionally do not export or compare
 Boomi component XML. Process source remains in Boomi, and exported source can
 contain implementation or configuration details that do not belong in GitHub.
 
+### Operational Controls
+
+- Search processes by name and filter by Boomi folder, branch, or last editor.
+- Only one release or rollback runs at a time; later requests queue in GitHub.
+- After each deployment, the workflow verifies the exact package ID is active
+   in the target environment before continuing or reporting success.
+- Audit issues receive updates for approvals, package creation, DV validation,
+   PD promotion, failures, and final closure.
+- Recent runs show requester, branch, target, duration, approval state, and the
+   linked audit issue.
+- **Restore package** lists only inactive packages previously deployed for the
+   selected process and environment. Rollback has its own approval, ownership
+   validation, post-deployment validation, and audit issue.
+
+Environment Extension editing or validation remains out of scope. Manage
+environment-specific values in Boomi and review them there before approval.
+
+Run all backend and deployment-command tests with `npm test`. The test command
+runs both the Node API suite and Python package-validation suite.
+
 For frontend development, run `npm run dev:server` and `npm run dev` in separate
 terminals. Both development servers bind to `127.0.0.1`.
 

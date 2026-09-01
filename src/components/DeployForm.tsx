@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowRight, CheckCircle2, ExternalLink, PackagePlus, Rocket } from "lucide-react";
+import { useDeferredValue, useEffect, useState } from "react";
+import { ArrowRight, CheckCircle2, ExternalLink, PackagePlus, Rocket, Search } from "lucide-react";
 import { api, type Component, type DeploymentPlan, type DeployRequest } from "../api";
 
 interface DeployFormProps {
@@ -42,7 +42,21 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
   const [confirming, setConfirming] = useState(false);
   const [checkingPlan, setCheckingPlan] = useState(false);
   const [plan, setPlan] = useState<DeploymentPlan | null>(null);
+  const [processSearch, setProcessSearch] = useState("");
+  const [folderFilter, setFolderFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const deferredSearch = useDeferredValue(processSearch.trim().toLowerCase());
   const selectedComponent = components.find((component) => component.componentId === componentId);
+  const folders = [...new Set(components.map((component) => component.folderName))].sort();
+  const branches = [...new Set(components.map((component) => component.branchName))].sort();
+  const owners = [...new Set(components.map((component) => component.modifiedBy))].sort();
+  const filteredComponents = components.filter((component) =>
+    (!deferredSearch || component.name.toLowerCase().includes(deferredSearch)) &&
+    (!folderFilter || component.folderName === folderFilter) &&
+    (!branchFilter || component.branchName === branchFilter) &&
+    (!ownerFilter || component.modifiedBy === ownerFilter)
+  );
 
   useEffect(() => {
     if (!componentId) {
@@ -110,9 +124,16 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
       </div>
       {error && <p className="error-banner">{error}</p>}
       <form onSubmit={submit}>
+        <label>Find process<div className="search-control"><Search size={16} aria-hidden="true" /><input type="search" value={processSearch} onChange={(event) => setProcessSearch(event.target.value)} placeholder="Search by process name" /></div></label>
+        <div className="catalog-filters">
+          <label>Folder<select value={folderFilter} onChange={(event) => setFolderFilter(event.target.value)}><option value="">All folders</option>{folders.map((folder) => <option value={folder} key={folder}>{folder}</option>)}</select></label>
+          <label>Branch<select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)}><option value="">All branches</option>{branches.map((branch) => <option value={branch} key={branch}>{branch}</option>)}</select></label>
+          <label>Owner<select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}><option value="">All owners</option>{owners.map((owner) => <option value={owner} key={owner}>{owner}</option>)}</select></label>
+        </div>
         <label>Process<select value={componentId} onChange={(event) => setComponentId(event.target.value)} disabled={loading || components.length === 0}>
-          <option value="">{loading ? "Loading processes..." : "Select a process"}</option>
-          {components.map((component) => <option value={component.componentId} key={component.componentId}>{component.name}</option>)}
+          <option value="">{loading ? "Loading processes..." : `Select a process (${filteredComponents.length})`}</option>
+          {selectedComponent && !filteredComponents.some((component) => component.componentId === componentId) && <option value={selectedComponent.componentId}>{selectedComponent.name}</option>}
+          {filteredComponents.map((component) => <option value={component.componentId} key={component.componentId}>{component.name}</option>)}
         </select></label>
 
         <div className="form-pair">

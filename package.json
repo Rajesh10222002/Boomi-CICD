@@ -8,7 +8,7 @@
     "dev:server": "node --watch server/index.js",
     "build": "tsc -b && vite build",
     "start": "node server/index.js",
-    "test": "node --test server/index.test.js"
+    "test": "node --test server/index.test.js && python -m unittest discover -s tests -p test_*.py"
   },
   "dependencies": {
     "express": "^5.1.0",

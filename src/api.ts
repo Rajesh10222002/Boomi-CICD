@@ -30,12 +30,17 @@ export interface EnvironmentDeployment {
 
 export interface WorkflowRun {
   id: number;
+  runNumber: number;
   name: string;
   status: string;
   conclusion: string | null;
   createdAt: string;
+  updatedAt: string;
+  durationMs: number | null;
   url: string;
   actor: string;
+  branch: string;
+  issue: { number: number; url: string; state: string; target: string } | null;
 }
 
 export interface PendingRun {
@@ -70,6 +75,12 @@ export interface DeploymentPlan {
   }>;
 }
 
+export interface RollbackCandidate {
+  packageId: string;
+  packageVersion: string;
+  deployedDate: string | null;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...options,
@@ -88,10 +99,15 @@ export const api = {
   components: () => request<Component[]>("/api/components"),
   deployed: () => request<EnvironmentDeployment[]>("/api/deployed"),
   deploymentPlan: (componentId: string, version: string, target: DeployRequest["target"]) => request<DeploymentPlan>(`/api/deployment-plan?componentId=${encodeURIComponent(componentId)}&version=${encodeURIComponent(version)}&target=${encodeURIComponent(target)}`),
+  rollbackCandidates: (componentId: string, environmentId: string) => request<RollbackCandidate[]>(`/api/rollback-candidates?componentId=${encodeURIComponent(componentId)}&environmentId=${encodeURIComponent(environmentId)}`),
   versions: (componentId: string) => request<string[]>(`/api/versions?componentId=${encodeURIComponent(componentId)}`),
   runs: () => request<WorkflowRun[]>("/api/runs"),
   pending: () => request<PendingRun[]>("/api/pending"),
   deploy: (input: DeployRequest) => request<{ message: string; issue: { number: number; url: string }; actionsUrl: string }>("/api/deploy", {
+    method: "POST",
+    body: JSON.stringify(input),
+  }),
+  rollback: (input: { componentId: string; environmentId: string; packageId: string }) => request<{ message: string; issue: { number: number; url: string }; actionsUrl: string }>("/api/rollback", {
     method: "POST",
     body: JSON.stringify(input),
   }),

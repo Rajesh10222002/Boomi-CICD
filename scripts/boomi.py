@@ -5,6 +5,7 @@ import base64
 import json
 import os
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -225,12 +226,95 @@ def deploy(client, target):
         print("Created deployment " + deployment_id + " for " + name + ".")
 
 
+def validate(client, target):
+    manifest = load_manifest()
+    if target not in manifest["environments"]:
+        fail("Unknown validation target '" + target + "'.")
+    package_ids = load_json(PACKAGES_PATH, "Package artifact")
+    environment_id = manifest["environments"][target]
+
+    for name, package_id in package_ids.items():
+        print("Validating " + name + " in " + target + "...")
+        found = False
+        for attempt in range(6):
+            response = client.post(
+                "DeployedPackage/query",
+                {
+                    "QueryFilter": {
+                        "expression": {
+                            "operator": "and",
+                            "nestedExpression": [
+                                {"operator": "EQUALS", "property": "environmentId", "argument": [environment_id]},
+                                {"operator": "EQUALS", "property": "packageId", "argument": [package_id]},
+                                {"operator": "EQUALS", "property": "active", "argument": ["true"]},
+                            ],
+                        }
+                    }
+                },
+            )
+            found = any(record.get("packageId") == package_id and record.get("active") for record in response.get("result", []))
+            if found:
+                break
+            if attempt < 5:
+                time.sleep(5)
+        if not found:
+            fail("Package " + package_id + " is not active in " + target + " after deployment.")
+        print("Verified package " + package_id + " is active for " + name + ".")
+
+
+def rollback(client, target):
+    manifest = load_manifest()
+    if target not in manifest["environments"]:
+        fail("Unknown rollback target '" + target + "'.")
+    package_id = os.environ.get("BOOMI_ROLLBACK_PACKAGE_ID", "").strip()
+    component_name = os.environ.get("BOOMI_ROLLBACK_COMPONENT_NAME", "").strip()
+    component_id = os.environ.get("BOOMI_ROLLBACK_COMPONENT_ID", "").strip()
+    if not package_id or not component_name or not component_id:
+        fail("Rollback requires package ID, component ID, and component name configuration.")
+
+    history = client.post(
+        "DeployedPackage/query",
+        {
+            "QueryFilter": {
+                "expression": {
+                    "operator": "and",
+                    "nestedExpression": [
+                        {"operator": "EQUALS", "property": "environmentId", "argument": [manifest["environments"][target]]},
+                        {"operator": "EQUALS", "property": "componentId", "argument": [component_id]},
+                        {"operator": "EQUALS", "property": "packageId", "argument": [package_id]},
+                    ],
+                }
+            }
+        },
+    )
+    if not any(record.get("packageId") == package_id and record.get("componentId") == component_id for record in history.get("result", [])):
+        fail("Rollback package was not previously deployed for this component in " + target + ".")
+
+    print("Rolling back " + component_name + " in " + target + "...")
+    response = client.post(
+        "DeployedPackage",
+        {
+            "environmentId": manifest["environments"][target],
+            "packageId": package_id,
+            "notes": "Rollback approved through GitHub",
+        },
+    )
+    if not response.get("deploymentId"):
+        fail("Boomi did not return deploymentId for rollback of " + component_name + ".")
+
+    package_path = PACKAGES_PATH
+    with open(package_path, "w", encoding="utf-8") as file:
+        json.dump({component_name: package_id}, file, indent=2)
+        file.write("\n")
+    validate(client, target)
+
+
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("check", "package", "deploy", "target", "issue"):
-        fail("Usage: python scripts/boomi.py check|package|deploy <dev|prod>|target|issue")
-    if sys.argv[1] == "deploy" and len(sys.argv) != 3:
-        fail("Usage: python scripts/boomi.py deploy <dev|prod>")
-    if sys.argv[1] != "deploy" and len(sys.argv) != 2:
+    if len(sys.argv) < 2 or sys.argv[1] not in ("check", "package", "deploy", "validate", "rollback", "target", "issue"):
+        fail("Usage: python scripts/boomi.py check|package|deploy <dev|prod>|validate <dev|prod>|rollback <dev|prod>|target|issue")
+    if sys.argv[1] in ("deploy", "validate", "rollback") and len(sys.argv) != 3:
+        fail("Usage: python scripts/boomi.py " + sys.argv[1] + " <dev|prod>")
+    if sys.argv[1] not in ("deploy", "validate", "rollback") and len(sys.argv) != 2:
         fail("Unexpected command arguments.")
 
     if sys.argv[1] in ("target", "issue"):
@@ -244,6 +328,10 @@ def main():
         check(client)
     elif sys.argv[1] == "package":
         package(client)
+    elif sys.argv[1] == "validate":
+        validate(client, sys.argv[2])
+    elif sys.argv[1] == "rollback":
+        rollback(client, sys.argv[2])
     else:
         deploy(client, sys.argv[2])
 

@@ -8,6 +8,7 @@ import { rateLimit } from "express-rate-limit";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE_TTL = 5 * 60 * 1000;
 const WORKFLOW_FILE = "deploy.yml";
+const ROLLBACK_WORKFLOW_FILE = "rollback.yml";
 const TARGETS = new Set(["dev", "dev-and-production"]);
 
 function required(name, env) {
@@ -249,17 +250,64 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     return { componentId, componentName: component.name, sourceRevision: component.currentVersion, version, target, environments: plans };
   }
 
+  async function rollbackCandidates(componentId, environmentId) {
+    const component = (await components()).find((item) => item.componentId === componentId);
+    const environment = (await environments()).find((item) => item.id === environmentId);
+    if (!component || !environment) throw invalid("Select a valid process and environment.");
+    const records = await boomiQuery("DeployedPackage", {
+      QueryFilter: {
+        expression: {
+          operator: "and",
+          nestedExpression: [
+            { operator: "EQUALS", property: "environmentId", argument: [environmentId] },
+            { operator: "EQUALS", property: "componentId", argument: [componentId] },
+          ],
+        },
+      },
+    });
+    const seen = new Set();
+    const activePackageIds = new Set(records.filter((record) => record.active).map((record) => record.packageId));
+    return records
+      .filter((record) => record.packageId && !record.active && !activePackageIds.has(record.packageId) && !seen.has(record.packageId) && seen.add(record.packageId))
+      .map((record) => ({ packageId: record.packageId, packageVersion: record.packageVersion || "unknown", deployedDate: record.deployedDate || null }))
+      .sort((left, right) => String(right.deployedDate || "").localeCompare(String(left.deployedDate || "")));
+  }
+
   async function runs() {
-    const data = await github(`/actions/workflows/${WORKFLOW_FILE}/runs?per_page=10`);
-    return (data.workflow_runs || []).map((run) => ({
+    const [releaseData, rollbackData, issueData] = await Promise.all([
+      github(`/actions/workflows/${WORKFLOW_FILE}/runs?per_page=10`),
+      github(`/actions/workflows/${ROLLBACK_WORKFLOW_FILE}/runs?per_page=10`),
+      github("/issues?state=all&per_page=30&sort=created&direction=desc"),
+    ]);
+    const issues = new Map((issueData || []).filter((issue) => !issue.pull_request).map((issue) => [issue.number, issue]));
+    return [...(releaseData.workflow_runs || []), ...(rollbackData.workflow_runs || [])]
+      .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)))
+      .slice(0, 10)
+      .map((run) => ({
+      ...(() => {
+        const issueNumber = Number((run.display_title || "").match(/\(#(\d+)\)/)?.[1] || 0);
+        const issue = issues.get(issueNumber);
+        return {
+          issue: issue ? {
+            number: issue.number,
+            url: issue.html_url,
+            state: issue.state,
+            target: issue.body?.match(/\*\*Release path:\*\*\s*([^\r\n]+)/)?.[1]?.trim() || "unknown",
+          } : null,
+        };
+      })(),
       id: run.id,
+      runNumber: run.run_number,
       name: run.display_title || run.name,
       status: run.status,
       conclusion: run.conclusion,
       createdAt: run.created_at,
+      updatedAt: run.updated_at,
+      durationMs: run.updated_at && run.created_at ? Math.max(0, new Date(run.updated_at).getTime() - new Date(run.created_at).getTime()) : null,
       url: run.html_url,
       actor: run.actor?.login || "unknown",
-    }));
+      branch: run.head_branch || "unknown",
+      }));
   }
 
   async function pending() {
@@ -365,7 +413,57 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     };
   }
 
-  return { environments, components, deployed, deploymentPlan, versions, runs, pending, deploy };
+  async function rollback(input) {
+    const { componentId, environmentId, packageId } = input;
+    const component = (await components()).find((item) => item.componentId === componentId);
+    const environment = (await environments()).find((item) => item.id === environmentId);
+    const candidates = await rollbackCandidates(componentId, environmentId);
+    const candidate = candidates.find((item) => item.packageId === packageId);
+    if (!component || !environment || !candidate) throw invalid("Select a previous package from the chosen environment.");
+    const manifest = await loadManifest();
+    const target = Object.entries(manifest.environments).find(([, id]) => id === environmentId)?.[0];
+    if (!target || !["dev", "prod"].includes(target)) throw invalid("Rollback is limited to configured DV and PD environments.");
+
+    const issue = await github("/issues", {
+      method: "POST",
+      body: JSON.stringify({
+        title: `Rollback ${component.name} in ${environment.name} to ${candidate.packageVersion}`,
+        body: [
+          "## Rollback request",
+          "",
+          `**Process:** ${component.name}`,
+          `**Component ID:** ${componentId}`,
+          `**Environment:** ${environment.name}`,
+          `**Package ID:** ${packageId}`,
+          `**Restore package version:** ${candidate.packageVersion}`,
+          `**Previously deployed:** ${candidate.deployedDate || "unknown"}`,
+          "",
+          "The selected immutable package already exists in Boomi. GitHub approval is required before it is redeployed.",
+        ].join("\n"),
+      }),
+    });
+    await github(`/actions/workflows/${ROLLBACK_WORKFLOW_FILE}/dispatches`, {
+      method: "POST",
+      body: JSON.stringify({
+        ref: "main",
+        inputs: {
+          target,
+          component_name: component.name,
+          component_id: componentId,
+          package_id: packageId,
+          package_version: candidate.packageVersion,
+          issue_number: String(issue.number),
+        },
+      }),
+    });
+    return {
+      message: `Rollback requested for ${environment.name}.`,
+      issue: { number: issue.number, url: issue.html_url },
+      actionsUrl: `https://github.com/${encodeURIComponent(required("GITHUB_OWNER", env))}/${encodeURIComponent(required("GITHUB_REPO", env))}/actions/workflows/${ROLLBACK_WORKFLOW_FILE}`,
+    };
+  }
+
+  return { environments, components, deployed, deploymentPlan, rollbackCandidates, versions, runs, pending, deploy, rollback };
 }
 
 export function createApp({ env = process.env, services = createServices(env) } = {}) {
@@ -391,9 +489,11 @@ export function createApp({ env = process.env, services = createServices(env) } 
     String(request.query.target || "dev-and-production"),
   )));
   app.get("/api/versions", asyncRoute((request) => services.versions(String(request.query.componentId || ""))));
+  app.get("/api/rollback-candidates", asyncRoute((request) => services.rollbackCandidates(String(request.query.componentId || ""), String(request.query.environmentId || ""))));
   app.get("/api/runs", asyncRoute(() => services.runs()));
   app.get("/api/pending", asyncRoute(() => services.pending()));
   app.post("/api/deploy", deployLimiter, asyncRoute((request) => services.deploy(request.body), 202));
+  app.post("/api/rollback", deployLimiter, asyncRoute((request) => services.rollback(request.body), 202));
 
   const distPath = path.join(ROOT, "dist");
   app.use(express.static(distPath));

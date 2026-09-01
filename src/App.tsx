@@ -4,6 +4,7 @@ import { api, type Component, type Environment, type EnvironmentDeployment, type
 import { DeployForm } from "./components/DeployForm";
 import { EnvironmentStatus } from "./components/EnvironmentStatus";
 import { RunHistory } from "./components/RunHistory";
+import { RollbackForm } from "./components/RollbackForm";
 import "./styles.css";
 
 interface Loadable<T> { data: T; loading: boolean; error: string }
@@ -59,6 +60,7 @@ export default function App() {
           <EnvironmentStatus data={deployed.data} loading={deployed.loading} error={deployed.error} />
           <DeployForm components={components.data} loading={components.loading} error={components.error} onStarted={() => loadRuns(true)} />
           <RunHistory runs={runs.data} pending={pending} loading={runs.loading} error={runs.error} onRefresh={() => loadRuns(true)} />
+          <RollbackForm environments={environments.data} components={components.data} loading={environments.loading || components.loading} onStarted={() => loadRuns(true)} />
         </div>
       </main>
       <footer><span>Release data from Boomi Platform API</span><span>Actions audit trail retained in GitHub</span></footer>
