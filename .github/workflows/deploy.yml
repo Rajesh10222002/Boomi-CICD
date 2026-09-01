@@ -1,0 +1,60 @@
+name: Deploy Boomi release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['manifests/release.json']
+
+env:
+  BOOMI_ACCOUNT_ID: ${{ secrets.BOOMI_ACCOUNT_ID }}
+  BOOMI_USERNAME: ${{ secrets.BOOMI_USERNAME }}
+  BOOMI_TOKEN: ${{ secrets.BOOMI_TOKEN }}
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create packaged components
+        run: python scripts/boomi.py package
+      - name: Upload immutable package IDs
+        uses: actions/upload-artifact@v4
+        with:
+          name: boomi-packages
+          path: packages.json
+          if-no-files-found: error
+
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: package
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download immutable package IDs
+        uses: actions/download-artifact@v4
+        with:
+          name: boomi-packages
+      - name: Deploy to Dev
+        run: python scripts/boomi.py deploy dev
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download immutable package IDs
+        uses: actions/download-artifact@v4
+        with:
+          name: boomi-packages
+      - name: Deploy to Prod
+        run: python scripts/boomi.py deploy prod
