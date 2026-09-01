@@ -1,14 +1,15 @@
 {
-  "notes": "Release approved through GitHub",
+  "notes": "Release Aggregate Prompt Messages 1.1",
+  "target": "dev",
   "environments": {
     "dev": "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d",
     "prod": "bf3c615f-7767-4381-8829-b25358f3538f"
   },
   "components": [
     {
-      "name": "Fetch and Process User Data",
-      "id": "f88b602e-605a-4d49-bf27-b7b42951d227",
-      "version": "1.0"
+      "name": "Aggregate Prompt Messages",
+      "id": "67368715-c9bf-4360-9a21-718644bc7830",
+      "version": "1.1"
     }
   ]
 }
