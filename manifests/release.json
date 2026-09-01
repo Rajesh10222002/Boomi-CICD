@@ -1,6 +1,6 @@
 {
-  "notes": "Release Aggregate Prompt Messages 1.1",
-  "target": "dev",
+  "notes": "Release Aggregate Prompt Messages 1.2",
+  "target": "dev-and-production",
   "environments": {
     "dev": "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d",
     "prod": "bf3c615f-7767-4381-8829-b25358f3538f"
@@ -9,7 +9,7 @@
     {
       "name": "Aggregate Prompt Messages",
       "id": "67368715-c9bf-4360-9a21-718644bc7830",
-      "version": "1.1"
+      "version": "1.2"
     }
   ]
 }
