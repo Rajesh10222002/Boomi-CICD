@@ -60,6 +60,8 @@ def load_manifest():
         fail("Manifest must contain an environments object and a components array.")
     if not components:
         fail("Manifest components array must contain at least one component.")
+    if manifest.get("target", "dev-and-production") not in ("dev", "dev-and-production"):
+        fail("Manifest target must be dev or dev-and-production.")
 
     values = list(environments.values())
     for component in components:
@@ -92,6 +94,10 @@ def release_version(component):
 
 def release_notes(manifest):
     return os.environ.get("BOOMI_RELEASE_NOTES", "").strip() or manifest.get("notes", "")
+
+
+def release_target(manifest):
+    return os.environ.get("BOOMI_RELEASE_TARGET", "").strip() or manifest.get("target", "dev-and-production")
 
 
 class BoomiClient:
@@ -215,12 +221,16 @@ def deploy(client, target):
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("check", "package", "deploy"):
-        fail("Usage: python scripts/boomi.py check|package|deploy <dev|prod>")
+    if len(sys.argv) < 2 or sys.argv[1] not in ("check", "package", "deploy", "target"):
+        fail("Usage: python scripts/boomi.py check|package|deploy <dev|prod>|target")
     if sys.argv[1] == "deploy" and len(sys.argv) != 3:
         fail("Usage: python scripts/boomi.py deploy <dev|prod>")
     if sys.argv[1] != "deploy" and len(sys.argv) != 2:
         fail("Unexpected command arguments.")
+
+    if sys.argv[1] == "target":
+        print(release_target(load_manifest()))
+        return
 
     client = BoomiClient(load_credentials())
     if sys.argv[1] == "check":

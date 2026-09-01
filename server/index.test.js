@@ -9,7 +9,7 @@ const authorization = `Basic ${Buffer.from("operator:test-password").toString("b
 function fakeServices() {
   return {
     environments: async () => [{ id: "dev-id", name: "DV", classification: "TEST" }],
-    components: async () => [{ componentId: "component-id", name: "Process A", type: "process", currentVersion: 2, approved: true }],
+    components: async () => [{ componentId: "component-id", name: "Process A", type: "process", currentVersion: 2 }],
     deployed: async () => [],
     versions: async () => ["1.0", "1.1"],
     runs: async () => [],
@@ -45,7 +45,7 @@ test("API returns data after authentication", async () => {
   });
 });
 
-test("component catalog includes approved and unapproved Boomi processes", async () => {
+test("component catalog includes every current Boomi process", async () => {
   const serviceEnv = {
     BOOMI_ACCOUNT_ID: "account",
     BOOMI_USERNAME: "user@example.com",
@@ -65,8 +65,50 @@ test("component catalog includes approved and unapproved Boomi processes", async
   };
   const catalog = await createServices(serviceEnv, fetchImpl).components();
   assert.equal(catalog.length, 2);
-  assert.equal(catalog.find((component) => component.componentId === "another-process").approved, false);
-  assert.equal(catalog.find((component) => component.componentId.startsWith("f88b")).approved, true);
+  assert.deepEqual(catalog.map((component) => component.name), ["Another Process", "Fetch and Process User Data"]);
+});
+
+test("deploy creates a reviewed one-component release pull request", async () => {
+  const serviceEnv = {
+    BOOMI_ACCOUNT_ID: "account",
+    BOOMI_USERNAME: "user@example.com",
+    BOOMI_TOKEN: "token",
+    GITHUB_OWNER: "owner",
+    GITHUB_REPO: "repo",
+    GITHUB_TOKEN: "github-token",
+  };
+  const requests = [];
+  const currentManifest = {
+    notes: "Previous release",
+    target: "dev",
+    environments: { dev: "dev-id", prod: "prod-id" },
+    components: [{ name: "Old Process", id: "old-id", version: "1.0" }],
+  };
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url.endsWith("/ComponentMetadata/query")) return Response.json({ result: [{ componentId: "new-id", name: "New Process", type: "process", version: 3, deleted: false }] });
+    if (url.endsWith("/PackagedComponent/query")) return Response.json({ result: [] });
+    if (url.includes("/contents/manifests/release.json?ref=main")) return Response.json({ sha: "file-sha", content: Buffer.from(JSON.stringify(currentManifest)).toString("base64") });
+    if (url.endsWith("/git/ref/heads/main")) return Response.json({ object: { sha: "main-sha" } });
+    if (url.endsWith("/git/refs")) return Response.json({ ref: "created" }, { status: 201 });
+    if (url.endsWith("/contents/manifests/release.json")) return Response.json({ content: { sha: "new-sha" } });
+    if (url.endsWith("/pulls")) return Response.json({ number: 12, html_url: "https://github.example/pull/12" }, { status: 201 });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  const result = await createServices(serviceEnv, fetchImpl).deploy({
+    componentId: "new-id",
+    version: "2.1",
+    target: "dev-and-production",
+    notes: "Guard error handling",
+  });
+  assert.equal(result.pullRequest.number, 12);
+  const update = requests.find((request) => request.url.endsWith("/contents/manifests/release.json") && request.options.method === "PUT");
+  const updateBody = JSON.parse(update.options.body);
+  const release = JSON.parse(Buffer.from(updateBody.content, "base64").toString("utf8"));
+  assert.deepEqual(release.components, [{ name: "New Process", id: "new-id", version: "2.1" }]);
+  assert.equal(release.target, "dev-and-production");
+  assert.equal(release.notes, "Guard error handling");
 });
 
 test("deploy endpoint returns accepted response", async () => {

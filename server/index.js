@@ -136,8 +136,6 @@ export function createServices(env = process.env, fetchImpl = fetch) {
 
   async function components() {
     return cached("components", async () => {
-      const manifest = await loadManifest();
-      const allowedIds = new Set(manifest.components.map((component) => component.id));
       const records = await boomiQuery("ComponentMetadata", {
         QueryFilter: {
           expression: {
@@ -157,7 +155,6 @@ export function createServices(env = process.env, fetchImpl = fetch) {
           name,
           type,
           currentVersion: version,
-          approved: allowedIds.has(componentId),
         }))
         .sort((left, right) => left.name.localeCompare(right.name));
     });
@@ -165,7 +162,7 @@ export function createServices(env = process.env, fetchImpl = fetch) {
 
   async function versions(componentId) {
     const allowed = await components();
-    if (!allowed.some((component) => component.componentId === componentId && component.approved)) throw invalid("Component is not approved in the release manifest.");
+    if (!allowed.some((component) => component.componentId === componentId)) throw invalid("Select a current Boomi process.");
     const records = await boomiQuery("PackagedComponent", {
       QueryFilter: { expression: { operator: "EQUALS", property: "componentId", argument: [componentId] } },
     });
@@ -227,26 +224,60 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     }));
   }
 
+  async function createReleasePullRequest(component, version, target, notes) {
+    const currentFile = await github("/contents/manifests/release.json?ref=main");
+    const currentManifest = JSON.parse(Buffer.from(currentFile.content.replace(/\s/g, ""), "base64").toString("utf8"));
+    const mainReference = await github("/git/ref/heads/main");
+    const slug = component.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 36) || "process";
+    const branch = `release/${slug}-${Date.now()}`;
+
+    await github("/git/refs", {
+      method: "POST",
+      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: mainReference.object.sha }),
+    });
+
+    const manifest = {
+      notes: notes || `Release ${component.name} ${version}`,
+      target,
+      environments: currentManifest.environments,
+      components: [{ name: component.name, id: component.componentId, version }],
+    };
+    await github("/contents/manifests/release.json", {
+      method: "PUT",
+      body: JSON.stringify({
+        message: `Prepare ${component.name} ${version} release`,
+        content: Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`).toString("base64"),
+        sha: currentFile.sha,
+        branch,
+      }),
+    });
+
+    const pullRequest = await github("/pulls", {
+      method: "POST",
+      body: JSON.stringify({
+        title: `Release ${component.name} ${version}`,
+        head: branch,
+        base: "main",
+        body: `Deploy **${component.name}** version **${version}** using path **${target}**.`,
+      }),
+    });
+    return { number: pullRequest.number, url: pullRequest.html_url };
+  }
+
   async function deploy(input) {
     const { componentId, version, target, notes = "" } = input;
     const allowed = await components();
     const component = allowed.find((item) => item.componentId === componentId);
-    if (!component?.approved) throw invalid("Select a process approved in the release manifest.");
+    if (!component) throw invalid("Select a current Boomi process.");
     if (!/^\d+(?:\.\d+)*$/.test(version || "")) throw invalid("Version must contain numeric parts such as 1.1.");
     if (!TARGETS.has(target)) throw invalid("Select a valid deployment target.");
     if (notes.length > 500) throw invalid("Release notes must be 500 characters or fewer.");
     if ((await versions(componentId)).includes(version)) throw invalid(`Package version ${version} already exists.`);
 
-    const dispatch = await github(`/actions/workflows/${WORKFLOW_FILE}/dispatches`, {
-      method: "POST",
-      body: JSON.stringify({
-        ref: "main",
-        inputs: { component: component.name, version, target, notes },
-      }),
-    });
+    const pullRequest = await createReleasePullRequest(component, version, target, notes);
     return {
-      message: "Deployment started.",
-      run: dispatch?.workflow_run_id ? { id: dispatch.workflow_run_id, url: dispatch.html_url } : null,
+      message: "Release review created. Merge it to start deployment.",
+      pullRequest,
     };
   }
 

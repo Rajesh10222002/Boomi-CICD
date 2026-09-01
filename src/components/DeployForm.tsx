@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, CheckCircle2, PackagePlus, Rocket } from "lucide-react";
+import { ArrowRight, CheckCircle2, ExternalLink, PackagePlus, Rocket } from "lucide-react";
 import { api, type Component, type DeployRequest } from "../api";
 
 interface DeployFormProps {
@@ -37,14 +37,13 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
-  const selectedComponent = components.find((component) => component.componentId === componentId);
+  const [reviewUrl, setReviewUrl] = useState("");
 
   useEffect(() => {
-    const component = components.find((item) => item.componentId === componentId);
-    if (!componentId || !component?.approved) {
+    if (!componentId) {
       setVersions([]);
       setVersion("");
-      setFieldError(component && !component.approved ? "This process is not approved in manifests/release.json." : "");
+      setFieldError("");
       return;
     }
     let active = true;
@@ -65,6 +64,7 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
     event.preventDefault();
     setSubmitError("");
     setSuccess("");
+    setReviewUrl("");
     if (!componentId) return setSubmitError("Select a process.");
     if (!version.trim()) return setFieldError("Enter a package version.");
     if (!/^\d+(?:\.\d+)*$/.test(version)) return setFieldError("Use numeric version parts such as 1.1.");
@@ -74,6 +74,7 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
     try {
       const result = await api.deploy({ componentId, version, target, notes });
       setSuccess(result.message);
+      setReviewUrl(result.pullRequest.url);
       window.setTimeout(onStarted, 3000);
     } catch (requestError) {
       setSubmitError(requestError instanceof Error ? requestError.message : "Could not start deployment.");
@@ -92,7 +93,7 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
       <form onSubmit={submit}>
         <label>Process<select value={componentId} onChange={(event) => setComponentId(event.target.value)} disabled={loading || components.length === 0}>
           <option value="">{loading ? "Loading processes..." : "Select a process"}</option>
-          {components.map((component) => <option value={component.componentId} key={component.componentId}>{component.name}{component.approved ? "" : " (Not approved)"}</option>)}
+          {components.map((component) => <option value={component.componentId} key={component.componentId}>{component.name}</option>)}
         </select></label>
 
         <div className="form-pair">
@@ -111,8 +112,8 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
           {target === "dev-and-production" && <><ArrowRight size={14} /><span className="approval-step">Approval</span><ArrowRight size={14} /><span>PD</span></>}
         </div>
         {submitError && <p className="error-banner">{submitError}</p>}
-        {success && <p className="success-banner"><CheckCircle2 size={16} /> {success}</p>}
-        <button className="primary-button" type="submit" disabled={submitting || loading || !selectedComponent?.approved}>
+        {success && <p className="success-banner"><CheckCircle2 size={16} /> {success} {reviewUrl && <a href={reviewUrl} target="_blank" rel="noreferrer">Open review <ExternalLink size={13} /></a>}</p>}
+        <button className="primary-button" type="submit" disabled={submitting || loading || !componentId}>
           <Rocket size={17} /> {submitting ? "Starting..." : "Start deployment"}
         </button>
       </form>

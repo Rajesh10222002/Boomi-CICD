@@ -8,7 +8,7 @@ never returns or logs token values.
   `GITHUB_OWNER`, and `GITHUB_REPO` server-side.
 - Never prefix credentials with `VITE_`, `REACT_APP_`, or `NEXT_PUBLIC_`.
 - Use a fine-grained GitHub token restricted to this repository with Actions
-  read/write access.
+  read, Contents read/write, and Pull requests read/write access.
 - Set `DASHBOARD_USERNAME` and a strong `DASHBOARD_PASSWORD`. Every page and API
   endpoint requires HTTP Basic authentication.
 - The local server binds to `127.0.0.1`. Put it behind company SSO and HTTPS

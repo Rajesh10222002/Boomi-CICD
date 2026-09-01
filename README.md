@@ -99,15 +99,17 @@ npm start
 
 Open `http://127.0.0.1:3000` and enter the dashboard username and password in
 the browser prompt. The server binds only to your computer. The GitHub token
-must be a fine-grained token limited to this repository with Actions read/write
-access. Do not reuse your GitHub password.
+must be a fine-grained token limited to this repository with Actions read,
+Contents read/write, and Pull requests read/write access. Do not reuse your
+GitHub password.
 
 For guided startup, run `./scripts/start-dashboard.ps1` instead. It prompts for
 the same values, masks both tokens and the dashboard password, and keeps every
 value only in the server process memory.
 
-The process picker shows every current Boomi process. Processes not listed in
-`manifests/release.json` are marked **Not approved** and cannot be deployed.
+The process picker shows every current Boomi process. Starting a deployment
+creates a pull request that records the selected process ID, version, target,
+and notes in `manifests/release.json`. Merging that review starts deployment.
 `dev` deploys only to Dev. `dev-and-production` deploys to Dev and then waits
 for approval in GitHub before promoting the same package to Production.
 Approval is never available inside the dashboard.
