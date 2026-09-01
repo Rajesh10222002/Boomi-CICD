@@ -123,7 +123,15 @@ export function createServices(env = process.env, fetchImpl = fetch) {
       },
     });
     if (response.status === 204) return null;
-    if (!response.ok) throw new Error(`GitHub returned ${response.status} for ${endpoint}.`);
+    if (!response.ok) {
+      if (response.status === 403 && endpoint === "/git/refs") {
+        throw new Error("GitHub denied branch creation. Give the fine-grained token Contents: Read and write permission for this repository.");
+      }
+      if (response.status === 403 && endpoint === "/pulls") {
+        throw new Error("GitHub denied pull request creation. Give the fine-grained token Pull requests: Read and write permission for this repository.");
+      }
+      throw new Error(`GitHub returned ${response.status} for ${endpoint}.`);
+    }
     return response.json();
   }
 
