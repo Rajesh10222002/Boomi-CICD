@@ -204,6 +204,43 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     }));
   }
 
+  async function deploymentPlan(componentId, version, target = "dev-and-production") {
+    const component = (await components()).find((item) => item.componentId === componentId);
+    if (!component) throw invalid("Select a current Boomi process.");
+    if (!/^\d+(?:\.\d+)*$/.test(version || "")) throw invalid("Version must contain numeric parts such as 1.1.");
+    if (!TARGETS.has(target)) throw invalid("Select a valid deployment target.");
+
+    const manifest = await loadManifest();
+    const environmentList = await environments();
+    const selectedKeys = target === "dev" ? ["dev"] : ["dev", "prod"];
+    const plans = await Promise.all(selectedKeys.map(async (key) => {
+      const environmentId = manifest.environments[key];
+      const environment = environmentList.find((item) => item.id === environmentId);
+      const records = await boomiQuery("DeployedPackage", {
+        QueryFilter: {
+          expression: {
+            operator: "and",
+            nestedExpression: [
+              { operator: "EQUALS", property: "environmentId", argument: [environmentId] },
+              { operator: "EQUALS", property: "componentId", argument: [componentId] },
+              { operator: "EQUALS", property: "active", argument: ["true"] },
+            ],
+          },
+        },
+      });
+      const current = records.sort((left, right) => String(right.deployedDate || "").localeCompare(String(left.deployedDate || "")))[0];
+      return {
+        key,
+        name: environment?.name || key.toUpperCase(),
+        exists: Boolean(current),
+        currentVersion: current?.packageVersion || null,
+        requestedVersion: version,
+        action: current ? "upgrade" : "install",
+      };
+    }));
+    return { componentId, componentName: component.name, version, target, environments: plans };
+  }
+
   async function runs() {
     const data = await github(`/actions/workflows/${WORKFLOW_FILE}/runs?per_page=10`);
     return (data.workflow_runs || []).map((run) => ({
@@ -232,10 +269,16 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     }));
   }
 
-  async function createReleaseIssue(component, version, target, notes) {
+  async function createReleaseIssue(component, version, target, notes, plan) {
     const currentFile = await github("/contents/manifests/release.json?ref=main");
     const currentManifest = JSON.parse(Buffer.from(currentFile.content.replace(/\s/g, ""), "base64").toString("utf8"));
-    const previous = currentManifest.components?.[0] || {};
+    const environmentRows = plan.environments.map((environment) =>
+      `| ${environment.name} | ${environment.currentVersion ? `v${environment.currentVersion}` : "Not deployed"} | v${version} | ${environment.action === "upgrade" ? "Upgrade" : "New deployment"} |`
+    );
+    const environmentDiff = plan.environments.flatMap((environment) => [
+      `- ${environment.name}: ${environment.currentVersion ? `v${environment.currentVersion}` : "Not deployed"}`,
+      `+ ${environment.name}: v${version} (${environment.action === "upgrade" ? "upgrade" : "new deployment"})`,
+    ]);
     const issue = await github("/issues", {
       method: "POST",
       body: JSON.stringify({
@@ -243,25 +286,19 @@ export function createServices(env = process.env, fetchImpl = fetch) {
         body: [
           "## Release request",
           "",
-          `| Field | Before | Requested |`,
-          `| --- | --- | --- |`,
-          `| Process | ${previous.name || "None"} | ${component.name} |`,
-          `| Component ID | ${previous.id || "None"} | ${component.componentId} |`,
-          `| Package version | ${previous.version || "None"} | ${version} |`,
-          `| Release path | ${currentManifest.target || "dev-and-production"} | ${target} |`,
-          `| Notes | ${String(currentManifest.notes || "None").replace(/\|/g, "\\|")} | ${String(notes || "None").replace(/\|/g, "\\|")} |`,
+          `**Process:** ${component.name}`,
+          `**Component ID:** ${component.componentId}`,
+          `**Release path:** ${target}`,
+          `**Notes:** ${String(notes || "None").replace(/\|/g, "\\|")}`,
           "",
-          "## Manifest diff",
+          `| Environment | Currently deployed | Requested | Action |`,
+          `| --- | --- | --- | --- |`,
+          ...environmentRows,
+          "",
+          "## Deployment diff",
           "",
           "```diff",
-          `- Process: ${previous.name || "None"}`,
-          `+ Process: ${component.name}`,
-          `- Component ID: ${previous.id || "None"}`,
-          `+ Component ID: ${component.componentId}`,
-          `- Package version: ${previous.version || "None"}`,
-          `+ Package version: ${version}`,
-          `- Release path: ${currentManifest.target || "dev-and-production"}`,
-          `+ Release path: ${target}`,
+          ...environmentDiff,
           "```",
           "",
           "The workflow will update this issue after deployment completes.",
@@ -306,14 +343,15 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     if (notes.length > 500) throw invalid("Release notes must be 500 characters or fewer.");
     if ((await versions(componentId)).includes(version)) throw invalid(`Package version ${version} already exists.`);
 
-    const issue = await createReleaseIssue(component, version, target, notes);
+    const plan = await deploymentPlan(componentId, version, target);
+    const issue = await createReleaseIssue(component, version, target, notes, plan);
     return {
       message: "Deployment requested. GitHub Actions will wait for DV approval.",
       issue,
     };
   }
 
-  return { environments, components, deployed, versions, runs, pending, deploy };
+  return { environments, components, deployed, deploymentPlan, versions, runs, pending, deploy };
 }
 
 export function createApp({ env = process.env, services = createServices(env) } = {}) {
@@ -333,6 +371,11 @@ export function createApp({ env = process.env, services = createServices(env) } 
   app.get("/api/environments", asyncRoute(() => services.environments()));
   app.get("/api/components", asyncRoute(() => services.components()));
   app.get("/api/deployed", asyncRoute(() => services.deployed()));
+  app.get("/api/deployment-plan", asyncRoute((request) => services.deploymentPlan(
+    String(request.query.componentId || ""),
+    String(request.query.version || ""),
+    String(request.query.target || "dev-and-production"),
+  )));
   app.get("/api/versions", asyncRoute((request) => services.versions(String(request.query.componentId || ""))));
   app.get("/api/runs", asyncRoute(() => services.runs()));
   app.get("/api/pending", asyncRoute(() => services.pending()));

@@ -47,6 +47,21 @@ export interface DeployRequest {
   notes: string;
 }
 
+export interface DeploymentPlan {
+  componentId: string;
+  componentName: string;
+  version: string;
+  target: DeployRequest["target"];
+  environments: Array<{
+    key: "dev" | "prod";
+    name: string;
+    exists: boolean;
+    currentVersion: string | null;
+    requestedVersion: string;
+    action: "install" | "upgrade";
+  }>;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...options,
@@ -64,6 +79,7 @@ export const api = {
   environments: () => request<Environment[]>("/api/environments"),
   components: () => request<Component[]>("/api/components"),
   deployed: () => request<EnvironmentDeployment[]>("/api/deployed"),
+  deploymentPlan: (componentId: string, version: string, target: DeployRequest["target"]) => request<DeploymentPlan>(`/api/deployment-plan?componentId=${encodeURIComponent(componentId)}&version=${encodeURIComponent(version)}&target=${encodeURIComponent(target)}`),
   versions: (componentId: string) => request<string[]>(`/api/versions?componentId=${encodeURIComponent(componentId)}`),
   runs: () => request<WorkflowRun[]>("/api/runs"),
   pending: () => request<PendingRun[]>("/api/pending"),

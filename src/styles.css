@@ -80,6 +80,9 @@ textarea { resize: vertical; min-height: 80px; }
 .confirmation-dialog dl div { display: grid; grid-template-columns: 90px 1fr; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }
 .confirmation-dialog dt { color: var(--muted); font: 500 10px "DM Mono", monospace; text-transform: uppercase; }
 .confirmation-dialog dd { margin: 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 600; }
+.plan-comparison { margin-top: 18px; display: grid; gap: 8px; }
+.plan-comparison > div { display: grid; grid-template-columns: 34px 1fr 16px 1fr auto; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); background: #edf1ed; font: 500 11px "DM Mono", monospace; }
+.plan-comparison small { color: var(--teal); font: 700 9px "DM Mono", monospace; text-transform: uppercase; }
 .confirmation-note { margin: 18px 0; color: var(--muted); font-size: 12px; }
 .confirmation-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .confirmation-actions .primary-button { padding: 0 18px; }

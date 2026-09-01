@@ -115,14 +115,24 @@ and deploys only to Dev. `dev-and-production` also waits for PD approval before
 promoting the same package to Production. The workflow posts its result and
 closes the audit issue. Approval is never available inside the dashboard.
 
+Before confirmation, the backend queries the selected component ID in each
+target Boomi environment. The UI and audit issue show **Upgrade** with the
+currently deployed and requested package versions when the process exists, or
+**New deployment** when it does not. Both operations still wait for the target
+environment's GitHub approval; Boomi activates the new package and retains the
+previous deployment history.
+
 For frontend development, run `npm run dev:server` and `npm run dev` in separate
 terminals. Both development servers bind to `127.0.0.1`.
 
 ## Release Manifest
 
-`manifests/release.json` is the code-reviewed release decision. Commit every
-change to it so git history records what was promoted. `packages.json` is a
-temporary generated artifact and is intentionally ignored.
+`manifests/release.json` is the current code-reviewed release decision, not a
+catalog of every deployed process. Its `components` array is intentionally
+replaced by each release request. Existence and version comparisons come from
+Boomi, using the component ID and environment ID. Commit every change so git
+history records what was promoted. `packages.json` is a temporary generated
+artifact and is intentionally ignored.
 
 ## Troubleshooting
 

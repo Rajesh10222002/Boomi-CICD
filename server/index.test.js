@@ -81,13 +81,20 @@ test("deploy creates an audit issue and commits a one-component release", async 
   const currentManifest = {
     notes: "Previous release",
     target: "dev",
-    environments: { dev: "dev-id", prod: "prod-id" },
+    environments: { dev: "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d", prod: "bf3c615f-7767-4381-8829-b25358f3538f" },
     components: [{ name: "Old Process", id: "old-id", version: "1.0" }],
   };
   const fetchImpl = async (url, options = {}) => {
     requests.push({ url, options });
     if (url.endsWith("/ComponentMetadata/query")) return Response.json({ result: [{ componentId: "new-id", name: "New Process", type: "process", version: 3, deleted: false }] });
+    if (url.endsWith("/Environment/query")) return Response.json({ result: [{ id: "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d", name: "DV", classification: "TEST" }, { id: "bf3c615f-7767-4381-8829-b25358f3538f", name: "PD", classification: "PROD" }] });
     if (url.endsWith("/PackagedComponent/query")) return Response.json({ result: [] });
+    if (url.endsWith("/DeployedPackage/query")) {
+      const query = JSON.parse(options.body);
+      const filters = query.QueryFilter.expression.nestedExpression;
+      const environmentId = filters.find((filter) => filter.property === "environmentId").argument[0];
+      return Response.json({ result: environmentId === "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d" ? [{ componentId: "new-id", packageVersion: "1.5", active: true, deployedDate: "2026-08-30T10:00:00Z" }] : [] });
+    }
     if (url.includes("/contents/manifests/release.json?ref=main")) return Response.json({ sha: "file-sha", content: Buffer.from(JSON.stringify(currentManifest)).toString("base64") });
     if (url.endsWith("/issues")) return Response.json({ number: 12, html_url: "https://github.example/issues/12" }, { status: 201 });
     if (url.endsWith("/contents/manifests/release.json")) return Response.json({ content: { sha: "new-sha" } });
@@ -103,8 +110,10 @@ test("deploy creates an audit issue and commits a one-component release", async 
   assert.equal(result.issue.number, 12);
   const issueRequest = requests.find((request) => request.url.endsWith("/issues"));
   const issueBody = JSON.parse(issueRequest.options.body).body;
-  assert.match(issueBody, /\| Process \| Old Process \| New Process \|/);
-  assert.match(issueBody, /\| Package version \| 1\.0 \| 2\.1 \|/);
+  assert.match(issueBody, /\| DV \| v1\.5 \| v2\.1 \| Upgrade \|/);
+  assert.match(issueBody, /\| PD \| Not deployed \| v2\.1 \| New deployment \|/);
+  assert.match(issueBody, /- DV: v1\.5/);
+  assert.match(issueBody, /\+ PD: v2\.1 \(new deployment\)/);
   const update = requests.find((request) => request.url.endsWith("/contents/manifests/release.json") && request.options.method === "PUT");
   const updateBody = JSON.parse(update.options.body);
   const release = JSON.parse(Buffer.from(updateBody.content, "base64").toString("utf8"));

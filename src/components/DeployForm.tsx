@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, ExternalLink, PackagePlus, Rocket } from "lucide-react";
-import { api, type Component, type DeployRequest } from "../api";
+import { api, type Component, type DeploymentPlan, type DeployRequest } from "../api";
 
 interface DeployFormProps {
   components: Component[];
@@ -39,6 +39,8 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
   const [success, setSuccess] = useState("");
   const [issueUrl, setIssueUrl] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [checkingPlan, setCheckingPlan] = useState(false);
+  const [plan, setPlan] = useState<DeploymentPlan | null>(null);
   const selectedComponent = components.find((component) => component.componentId === componentId);
 
   useEffect(() => {
@@ -62,7 +64,7 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
     return () => { active = false; };
   }, [componentId, components]);
 
-  function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitError("");
     setSuccess("");
@@ -71,7 +73,15 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
     if (!version.trim()) return setFieldError("Enter a package version.");
     if (!/^\d+(?:\.\d+)*$/.test(version)) return setFieldError("Use numeric version parts such as 1.1.");
     if (versions.includes(version)) return setFieldError(`Version ${version} already exists.`);
-    setConfirming(true);
+    setCheckingPlan(true);
+    try {
+      setPlan(await api.deploymentPlan(componentId, version, target));
+      setConfirming(true);
+    } catch (requestError) {
+      setSubmitError(requestError instanceof Error ? requestError.message : "Could not compare deployed versions.");
+    } finally {
+      setCheckingPlan(false);
+    }
   }
 
   async function confirmDeployment() {
@@ -119,8 +129,8 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
         </div>
         {submitError && <p className="error-banner">{submitError}</p>}
         {success && <p className="success-banner"><CheckCircle2 size={16} /> {success} {issueUrl && <a href={issueUrl} target="_blank" rel="noreferrer">View audit issue <ExternalLink size={13} /></a>}</p>}
-        <button className="primary-button" type="submit" disabled={submitting || loading || !componentId}>
-          <Rocket size={17} /> {submitting ? "Starting..." : "Start deployment"}
+        <button className="primary-button" type="submit" disabled={submitting || checkingPlan || loading || !componentId}>
+          <Rocket size={17} /> {submitting ? "Starting..." : checkingPlan ? "Comparing environments..." : "Start deployment"}
         </button>
       </form>
       {confirming && (
@@ -134,6 +144,17 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
               <div><dt>Path</dt><dd>{target === "dev" ? "DV only" : "DV then PD"}</dd></div>
               <div><dt>Notes</dt><dd>{notes || "No release notes"}</dd></div>
             </dl>
+            <div className="plan-comparison">
+              {plan?.environments.map((environment) => (
+                <div key={environment.key}>
+                  <strong>{environment.name}</strong>
+                  <span>{environment.currentVersion ? `v${environment.currentVersion}` : "Not deployed"}</span>
+                  <ArrowRight size={14} />
+                  <span>v{environment.requestedVersion}</span>
+                  <small>{environment.action === "upgrade" ? "Upgrade" : "New deployment"}</small>
+                </div>
+              ))}
+            </div>
             <p className="confirmation-note">GitHub will open an audit issue and wait for approval before deploying to DV.</p>
             <div className="confirmation-actions">
               <button type="button" className="secondary-button" onClick={() => setConfirming(false)}>Cancel</button>
