@@ -182,7 +182,8 @@ export function createServices(env = process.env, fetchImpl = fetch) {
   }
 
   async function deployed() {
-    const environmentList = await environments();
+    const [environmentList, componentList] = await Promise.all([environments(), components()]);
+    const componentNames = new Map(componentList.map((component) => [component.componentId, component.name]));
     return Promise.all(environmentList.map(async (environment) => {
       const records = await boomiQuery("DeployedPackage", {
         QueryFilter: {
@@ -199,7 +200,7 @@ export function createServices(env = process.env, fetchImpl = fetch) {
         environment,
         deployments: records.map((record) => ({
           componentId: record.componentId,
-          componentName: record.componentName || "Unknown component",
+          componentName: record.componentName || componentNames.get(record.componentId) || "Unknown component",
           packageVersion: record.packageVersion || "unknown",
           deployedDate: record.deployedDate || null,
           deployedBy: record.deployedBy || "unknown",

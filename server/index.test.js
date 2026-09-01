@@ -68,6 +68,26 @@ test("component catalog includes every current Boomi process", async () => {
   assert.deepEqual(catalog.map((component) => component.name), ["Another Process", "Fetch and Process User Data"]);
 });
 
+test("deployed packages resolve names from component metadata", async () => {
+  const serviceEnv = {
+    BOOMI_ACCOUNT_ID: "account",
+    BOOMI_USERNAME: "user@example.com",
+    BOOMI_TOKEN: "token",
+    GITHUB_OWNER: "owner",
+    GITHUB_REPO: "repo",
+    GITHUB_TOKEN: "github-token",
+  };
+  const fetchImpl = async (url) => {
+    if (url.endsWith("/Environment/query")) return Response.json({ result: [{ id: "dev-id", name: "DV", classification: "TEST" }] });
+    if (url.endsWith("/ComponentMetadata/query")) return Response.json({ result: [{ componentId: "process-id", name: "Process A", type: "process", version: 2, deleted: false }] });
+    if (url.endsWith("/DeployedPackage/query")) return Response.json({ result: [{ componentId: "process-id", packageVersion: "1.2", active: true }] });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  const result = await createServices(serviceEnv, fetchImpl).deployed();
+  assert.equal(result[0].deployments[0].componentName, "Process A");
+});
+
 test("deploy creates an audit issue and commits a one-component release", async () => {
   const serviceEnv = {
     BOOMI_ACCOUNT_ID: "account",
