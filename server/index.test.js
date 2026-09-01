@@ -108,6 +108,7 @@ test("deploy creates an audit issue and commits a one-component release", async 
     notes: "Guard error handling",
   });
   assert.equal(result.issue.number, 12);
+  assert.equal(result.actionsUrl, "https://github.com/owner/repo/actions/workflows/deploy.yml");
   const issueRequest = requests.find((request) => request.url.endsWith("/issues"));
   const issueBody = JSON.parse(issueRequest.options.body).body;
   assert.match(issueBody, /\| DV \| v1\.5 \| v2\.1 \| Upgrade \|/);

@@ -38,6 +38,7 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
   const [issueUrl, setIssueUrl] = useState("");
+  const [actionsUrl, setActionsUrl] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [checkingPlan, setCheckingPlan] = useState(false);
   const [plan, setPlan] = useState<DeploymentPlan | null>(null);
@@ -69,6 +70,7 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
     setSubmitError("");
     setSuccess("");
     setIssueUrl("");
+    setActionsUrl("");
     if (!componentId) return setSubmitError("Select a process.");
     if (!version.trim()) return setFieldError("Enter a package version.");
     if (!/^\d+(?:\.\d+)*$/.test(version)) return setFieldError("Use numeric version parts such as 1.1.");
@@ -91,6 +93,7 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
       const result = await api.deploy({ componentId, version, target, notes });
       setSuccess(result.message);
       setIssueUrl(result.issue.url);
+      setActionsUrl(result.actionsUrl);
       window.setTimeout(onStarted, 3000);
     } catch (requestError) {
       setSubmitError(requestError instanceof Error ? requestError.message : "Could not start deployment.");
@@ -128,7 +131,7 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
           {target === "dev-and-production" && <><ArrowRight size={14} /><span className="approval-step">PD approval</span><ArrowRight size={14} /><span>PD</span></>}
         </div>
         {submitError && <p className="error-banner">{submitError}</p>}
-        {success && <p className="success-banner"><CheckCircle2 size={16} /> {success} {issueUrl && <a href={issueUrl} target="_blank" rel="noreferrer">View audit issue <ExternalLink size={13} /></a>}</p>}
+        {success && <div className="success-banner"><CheckCircle2 size={16} /><span>{success}</span><span className="success-links">{actionsUrl && <a href={actionsUrl} target="_blank" rel="noreferrer">Open GitHub Actions <ExternalLink size={13} /></a>}{issueUrl && <a href={issueUrl} target="_blank" rel="noreferrer">View audit issue <ExternalLink size={13} /></a>}</span></div>}
         <button className="primary-button" type="submit" disabled={submitting || checkingPlan || loading || !componentId}>
           <Rocket size={17} /> {submitting ? "Starting..." : checkingPlan ? "Comparing environments..." : "Start deployment"}
         </button>
@@ -155,7 +158,7 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
                 </div>
               ))}
             </div>
-            <p className="confirmation-note">GitHub will open an audit issue and wait for approval before deploying to DV.</p>
+            <p className="confirmation-note">GitHub will open an audit issue and wait for approval before deploying to DV. Comparison uses Boomi revision and deployment metadata; process XML remains in Boomi.</p>
             <div className="confirmation-actions">
               <button type="button" className="secondary-button" onClick={() => setConfirming(false)}>Cancel</button>
               <button type="button" className="primary-button" onClick={confirmDeployment}><Rocket size={17} /> Confirm and start</button>

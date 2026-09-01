@@ -354,9 +354,12 @@ export function createServices(env = process.env, fetchImpl = fetch) {
 
     const plan = await deploymentPlan(componentId, version, target);
     const issue = await createReleaseIssue(component, version, target, notes, plan);
+    const owner = encodeURIComponent(required("GITHUB_OWNER", env));
+    const repo = encodeURIComponent(required("GITHUB_REPO", env));
     return {
       message: "Deployment requested. GitHub Actions will wait for DV approval.",
       issue,
+      actionsUrl: `https://github.com/${owner}/${repo}/actions/workflows/${WORKFLOW_FILE}`,
     };
   }
 
