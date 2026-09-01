@@ -37,7 +37,9 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
-  const [reviewUrl, setReviewUrl] = useState("");
+  const [issueUrl, setIssueUrl] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const selectedComponent = components.find((component) => component.componentId === componentId);
 
   useEffect(() => {
     if (!componentId) {
@@ -60,21 +62,25 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
     return () => { active = false; };
   }, [componentId, components]);
 
-  async function submit(event: React.FormEvent) {
+  function submit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitError("");
     setSuccess("");
-    setReviewUrl("");
+    setIssueUrl("");
     if (!componentId) return setSubmitError("Select a process.");
     if (!version.trim()) return setFieldError("Enter a package version.");
     if (!/^\d+(?:\.\d+)*$/.test(version)) return setFieldError("Use numeric version parts such as 1.1.");
     if (versions.includes(version)) return setFieldError(`Version ${version} already exists.`);
+    setConfirming(true);
+  }
 
+  async function confirmDeployment() {
+    setConfirming(false);
     setSubmitting(true);
     try {
       const result = await api.deploy({ componentId, version, target, notes });
       setSuccess(result.message);
-      setReviewUrl(result.pullRequest.url);
+      setIssueUrl(result.issue.url);
       window.setTimeout(onStarted, 3000);
     } catch (requestError) {
       setSubmitError(requestError instanceof Error ? requestError.message : "Could not start deployment.");
@@ -108,15 +114,34 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
         <label>Release notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} placeholder="What changed in this release?" rows={3} /></label>
         <div className="route-preview" aria-label="Deployment route">
           <span><Rocket size={15} /> Package</span><ArrowRight size={14} />
-          <span>DV</span>
-          {target === "dev-and-production" && <><ArrowRight size={14} /><span className="approval-step">Approval</span><ArrowRight size={14} /><span>PD</span></>}
+          <span className="approval-step">DV approval</span><ArrowRight size={14} /><span>DV</span>
+          {target === "dev-and-production" && <><ArrowRight size={14} /><span className="approval-step">PD approval</span><ArrowRight size={14} /><span>PD</span></>}
         </div>
         {submitError && <p className="error-banner">{submitError}</p>}
-        {success && <p className="success-banner"><CheckCircle2 size={16} /> {success} {reviewUrl && <a href={reviewUrl} target="_blank" rel="noreferrer">Open review <ExternalLink size={13} /></a>}</p>}
+        {success && <p className="success-banner"><CheckCircle2 size={16} /> {success} {issueUrl && <a href={issueUrl} target="_blank" rel="noreferrer">View audit issue <ExternalLink size={13} /></a>}</p>}
         <button className="primary-button" type="submit" disabled={submitting || loading || !componentId}>
           <Rocket size={17} /> {submitting ? "Starting..." : "Start deployment"}
         </button>
       </form>
+      {confirming && (
+        <div className="confirmation-backdrop" role="presentation" onMouseDown={() => setConfirming(false)}>
+          <div className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-heading" onMouseDown={(event) => event.stopPropagation()}>
+            <p className="eyebrow">Confirm release request</p>
+            <h3 id="confirm-heading">Start this deployment?</h3>
+            <dl>
+              <div><dt>Process</dt><dd>{selectedComponent?.name}</dd></div>
+              <div><dt>Version</dt><dd>{version}</dd></div>
+              <div><dt>Path</dt><dd>{target === "dev" ? "DV only" : "DV then PD"}</dd></div>
+              <div><dt>Notes</dt><dd>{notes || "No release notes"}</dd></div>
+            </dl>
+            <p className="confirmation-note">GitHub will open an audit issue and wait for approval before deploying to DV.</p>
+            <div className="confirmation-actions">
+              <button type="button" className="secondary-button" onClick={() => setConfirming(false)}>Cancel</button>
+              <button type="button" className="primary-button" onClick={confirmDeployment}><Rocket size={17} /> Confirm and start</button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

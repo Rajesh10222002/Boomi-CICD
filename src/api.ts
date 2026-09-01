@@ -67,7 +67,7 @@ export const api = {
   versions: (componentId: string) => request<string[]>(`/api/versions?componentId=${encodeURIComponent(componentId)}`),
   runs: () => request<WorkflowRun[]>("/api/runs"),
   pending: () => request<PendingRun[]>("/api/pending"),
-  deploy: (input: DeployRequest) => request<{ message: string; pullRequest: { number: number; url: string } }>("/api/deploy", {
+  deploy: (input: DeployRequest) => request<{ message: string; issue: { number: number; url: string } }>("/api/deploy", {
     method: "POST",
     body: JSON.stringify(input),
   }),

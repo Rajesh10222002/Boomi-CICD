@@ -72,6 +72,17 @@ textarea { resize: vertical; min-height: 80px; }
 .route-preview .approval-step { border-color: #e4c171; background: #fff8e5; }
 .primary-button { min-height: 44px; border: 0; border-radius: 4px; background: var(--navy); color: white; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 13px; }
 .primary-button:hover:not(:disabled) { background: #263841; }
+.secondary-button { min-height: 42px; padding: 0 18px; border: 1px solid var(--line); border-radius: 4px; background: white; color: var(--ink); font-weight: 700; }
+.confirmation-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(16,24,32,.66); }
+.confirmation-dialog { width: min(480px, 100%); padding: 26px; border: 1px solid #cbd2cc; border-radius: 6px; background: var(--surface); box-shadow: 0 24px 70px rgba(0,0,0,.28); }
+.confirmation-dialog h3 { margin-bottom: 20px; font-size: 23px; }
+.confirmation-dialog dl { margin: 0; display: grid; border-top: 1px solid var(--line); }
+.confirmation-dialog dl div { display: grid; grid-template-columns: 90px 1fr; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.confirmation-dialog dt { color: var(--muted); font: 500 10px "DM Mono", monospace; text-transform: uppercase; }
+.confirmation-dialog dd { margin: 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 600; }
+.confirmation-note { margin: 18px 0; color: var(--muted); font-size: 12px; }
+.confirmation-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.confirmation-actions .primary-button { padding: 0 18px; }
 
 .icon-button { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 4px; display: grid; place-items: center; background: white; color: var(--ink); }
 .run-list { padding: 7px 0; }

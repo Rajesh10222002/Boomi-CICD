@@ -100,6 +100,11 @@ def release_target(manifest):
     return os.environ.get("BOOMI_RELEASE_TARGET", "").strip() or manifest.get("target", "dev-and-production")
 
 
+def release_issue_number(manifest):
+    issue_number = manifest.get("issueNumber")
+    return str(issue_number) if isinstance(issue_number, int) and issue_number > 0 else ""
+
+
 class BoomiClient:
     def __init__(self, credentials):
         self.base_url = (
@@ -221,15 +226,17 @@ def deploy(client, target):
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("check", "package", "deploy", "target"):
-        fail("Usage: python scripts/boomi.py check|package|deploy <dev|prod>|target")
+    if len(sys.argv) < 2 or sys.argv[1] not in ("check", "package", "deploy", "target", "issue"):
+        fail("Usage: python scripts/boomi.py check|package|deploy <dev|prod>|target|issue")
     if sys.argv[1] == "deploy" and len(sys.argv) != 3:
         fail("Usage: python scripts/boomi.py deploy <dev|prod>")
     if sys.argv[1] != "deploy" and len(sys.argv) != 2:
         fail("Unexpected command arguments.")
 
-    if sys.argv[1] == "target":
-        print(release_target(load_manifest()))
+    if sys.argv[1] in ("target", "issue"):
+        manifest = load_manifest()
+        value = release_target(manifest) if sys.argv[1] == "target" else release_issue_number(manifest)
+        print(value)
         return
 
     client = BoomiClient(load_credentials())

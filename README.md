@@ -64,8 +64,8 @@ Git records the reviewed release manifest and deployment workflow.
    Set `BOOMI_USERNAME` to the email address used to sign in to Boomi. The
    script adds the API token prefix automatically.
 9. Under **Settings > Environments**, create an environment named exactly
-   `production` and enable Required reviewers. This pauses the Prod job for
-   human approval.
+   `development` and another named exactly `production`. Enable Required
+   reviewers on both. These pause the DV and PD jobs for human approval.
 10. In the **Actions** tab, run **Deploy Boomi release** and approve the Prod job
     after the Dev deployment is verified.
 
@@ -100,7 +100,7 @@ npm start
 Open `http://127.0.0.1:3000` and enter the dashboard username and password in
 the browser prompt. The server binds only to your computer. The GitHub token
 must be a fine-grained token limited to this repository with Actions read,
-Contents read/write, and Pull requests read/write access. Do not reuse your
+Contents read/write, and Issues read/write access. Do not reuse your
 GitHub password.
 
 For guided startup, run `./scripts/start-dashboard.ps1` instead. It prompts for
@@ -108,11 +108,12 @@ the same values, masks both tokens and the dashboard password, and keeps every
 value only in the server process memory.
 
 The process picker shows every current Boomi process. Starting a deployment
-creates a pull request that records the selected process ID, version, target,
-and notes in `manifests/release.json`. Merging that review starts deployment.
-`dev` deploys only to Dev. `dev-and-production` deploys to Dev and then waits
-for approval in GitHub before promoting the same package to Production.
-Approval is never available inside the dashboard.
+shows an in-dashboard confirmation, opens an audit issue with the before and
+requested release values, and records the selection in `manifests/release.json`.
+That commit starts GitHub Actions automatically. `dev` waits for DV approval
+and deploys only to Dev. `dev-and-production` also waits for PD approval before
+promoting the same package to Production. The workflow posts its result and
+closes the audit issue. Approval is never available inside the dashboard.
 
 For frontend development, run `npm run dev:server` and `npm run dev` in separate
 terminals. Both development servers bind to `127.0.0.1`.

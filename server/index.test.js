@@ -14,7 +14,7 @@ function fakeServices() {
     versions: async () => ["1.0", "1.1"],
     runs: async () => [],
     pending: async () => [],
-    deploy: async (body) => ({ message: "Deployment started.", received: body, run: null }),
+    deploy: async (body) => ({ message: "Deployment requested.", received: body, issue: { number: 7, url: "https://github.example/issues/7" } }),
   };
 }
 
@@ -68,7 +68,7 @@ test("component catalog includes every current Boomi process", async () => {
   assert.deepEqual(catalog.map((component) => component.name), ["Another Process", "Fetch and Process User Data"]);
 });
 
-test("deploy creates a reviewed one-component release pull request", async () => {
+test("deploy creates an audit issue and commits a one-component release", async () => {
   const serviceEnv = {
     BOOMI_ACCOUNT_ID: "account",
     BOOMI_USERNAME: "user@example.com",
@@ -89,10 +89,8 @@ test("deploy creates a reviewed one-component release pull request", async () =>
     if (url.endsWith("/ComponentMetadata/query")) return Response.json({ result: [{ componentId: "new-id", name: "New Process", type: "process", version: 3, deleted: false }] });
     if (url.endsWith("/PackagedComponent/query")) return Response.json({ result: [] });
     if (url.includes("/contents/manifests/release.json?ref=main")) return Response.json({ sha: "file-sha", content: Buffer.from(JSON.stringify(currentManifest)).toString("base64") });
-    if (url.endsWith("/git/ref/heads/main")) return Response.json({ object: { sha: "main-sha" } });
-    if (url.endsWith("/git/refs")) return Response.json({ ref: "created" }, { status: 201 });
+    if (url.endsWith("/issues")) return Response.json({ number: 12, html_url: "https://github.example/issues/12" }, { status: 201 });
     if (url.endsWith("/contents/manifests/release.json")) return Response.json({ content: { sha: "new-sha" } });
-    if (url.endsWith("/pulls")) return Response.json({ number: 12, html_url: "https://github.example/pull/12" }, { status: 201 });
     throw new Error(`Unexpected request: ${url}`);
   };
 
@@ -102,13 +100,20 @@ test("deploy creates a reviewed one-component release pull request", async () =>
     target: "dev-and-production",
     notes: "Guard error handling",
   });
-  assert.equal(result.pullRequest.number, 12);
+  assert.equal(result.issue.number, 12);
+  const issueRequest = requests.find((request) => request.url.endsWith("/issues"));
+  const issueBody = JSON.parse(issueRequest.options.body).body;
+  assert.match(issueBody, /\| Process \| Old Process \| New Process \|/);
+  assert.match(issueBody, /\| Package version \| 1\.0 \| 2\.1 \|/);
   const update = requests.find((request) => request.url.endsWith("/contents/manifests/release.json") && request.options.method === "PUT");
   const updateBody = JSON.parse(update.options.body);
   const release = JSON.parse(Buffer.from(updateBody.content, "base64").toString("utf8"));
   assert.deepEqual(release.components, [{ name: "New Process", id: "new-id", version: "2.1" }]);
   assert.equal(release.target, "dev-and-production");
   assert.equal(release.notes, "Guard error handling");
+  assert.equal(release.issueNumber, 12);
+  assert.equal(updateBody.branch, "main");
+  assert.equal(requests.some((request) => request.url.endsWith("/git/refs") || request.url.endsWith("/pulls")), false);
 });
 
 test("deploy endpoint returns accepted response", async () => {

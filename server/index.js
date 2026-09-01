@@ -124,11 +124,11 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     });
     if (response.status === 204) return null;
     if (!response.ok) {
-      if (response.status === 403 && endpoint === "/git/refs") {
-        throw new Error("GitHub denied branch creation. Give the fine-grained token Contents: Read and write permission for this repository.");
+      if (response.status === 403 && endpoint === "/issues") {
+        throw new Error("GitHub denied issue creation. Give the fine-grained token Issues: Read and write permission for this repository.");
       }
-      if (response.status === 403 && endpoint === "/pulls") {
-        throw new Error("GitHub denied pull request creation. Give the fine-grained token Pull requests: Read and write permission for this repository.");
+      if (response.status === 403 && endpoint === "/contents/manifests/release.json") {
+        throw new Error("GitHub denied the release manifest update. Give the fine-grained token Contents: Read and write permission for this repository.");
       }
       throw new Error(`GitHub returned ${response.status} for ${endpoint}.`);
     }
@@ -232,44 +232,68 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     }));
   }
 
-  async function createReleasePullRequest(component, version, target, notes) {
+  async function createReleaseIssue(component, version, target, notes) {
     const currentFile = await github("/contents/manifests/release.json?ref=main");
     const currentManifest = JSON.parse(Buffer.from(currentFile.content.replace(/\s/g, ""), "base64").toString("utf8"));
-    const mainReference = await github("/git/ref/heads/main");
-    const slug = component.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 36) || "process";
-    const branch = `release/${slug}-${Date.now()}`;
-
-    await github("/git/refs", {
+    const previous = currentManifest.components?.[0] || {};
+    const issue = await github("/issues", {
       method: "POST",
-      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: mainReference.object.sha }),
+      body: JSON.stringify({
+        title: `Release ${component.name} ${version}`,
+        body: [
+          "## Release request",
+          "",
+          `| Field | Before | Requested |`,
+          `| --- | --- | --- |`,
+          `| Process | ${previous.name || "None"} | ${component.name} |`,
+          `| Component ID | ${previous.id || "None"} | ${component.componentId} |`,
+          `| Package version | ${previous.version || "None"} | ${version} |`,
+          `| Release path | ${currentManifest.target || "dev-and-production"} | ${target} |`,
+          `| Notes | ${String(currentManifest.notes || "None").replace(/\|/g, "\\|")} | ${String(notes || "None").replace(/\|/g, "\\|")} |`,
+          "",
+          "## Manifest diff",
+          "",
+          "```diff",
+          `- Process: ${previous.name || "None"}`,
+          `+ Process: ${component.name}`,
+          `- Component ID: ${previous.id || "None"}`,
+          `+ Component ID: ${component.componentId}`,
+          `- Package version: ${previous.version || "None"}`,
+          `+ Package version: ${version}`,
+          `- Release path: ${currentManifest.target || "dev-and-production"}`,
+          `+ Release path: ${target}`,
+          "```",
+          "",
+          "The workflow will update this issue after deployment completes.",
+        ].join("\n"),
+      }),
     });
 
     const manifest = {
       notes: notes || `Release ${component.name} ${version}`,
       target,
+      issueNumber: issue.number,
       environments: currentManifest.environments,
       components: [{ name: component.name, id: component.componentId, version }],
     };
-    await github("/contents/manifests/release.json", {
-      method: "PUT",
-      body: JSON.stringify({
-        message: `Prepare ${component.name} ${version} release`,
-        content: Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`).toString("base64"),
-        sha: currentFile.sha,
-        branch,
-      }),
-    });
-
-    const pullRequest = await github("/pulls", {
-      method: "POST",
-      body: JSON.stringify({
-        title: `Release ${component.name} ${version}`,
-        head: branch,
-        base: "main",
-        body: `Deploy **${component.name}** version **${version}** using path **${target}**.`,
-      }),
-    });
-    return { number: pullRequest.number, url: pullRequest.html_url };
+    try {
+      await github("/contents/manifests/release.json", {
+        method: "PUT",
+        body: JSON.stringify({
+          message: `Release ${component.name} ${version} (#${issue.number})`,
+          content: Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`).toString("base64"),
+          sha: currentFile.sha,
+          branch: "main",
+        }),
+      });
+    } catch (error) {
+      await github(`/issues/${issue.number}`, {
+        method: "PATCH",
+        body: JSON.stringify({ state: "closed", state_reason: "not_planned" }),
+      }).catch(() => {});
+      throw error;
+    }
+    return { number: issue.number, url: issue.html_url };
   }
 
   async function deploy(input) {
@@ -282,10 +306,10 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     if (notes.length > 500) throw invalid("Release notes must be 500 characters or fewer.");
     if ((await versions(componentId)).includes(version)) throw invalid(`Package version ${version} already exists.`);
 
-    const pullRequest = await createReleasePullRequest(component, version, target, notes);
+    const issue = await createReleaseIssue(component, version, target, notes);
     return {
-      message: "Release review created. Merge it to start deployment.",
-      pullRequest,
+      message: "Deployment requested. GitHub Actions will wait for DV approval.",
+      issue,
     };
   }
 
