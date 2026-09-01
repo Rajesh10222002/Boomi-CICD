@@ -238,13 +238,14 @@ export function createServices(env = process.env, fetchImpl = fetch) {
         name: environment?.name || key.toUpperCase(),
         exists: Boolean(current),
         currentVersion: current?.packageVersion || null,
+        currentComponentRevision: current?.componentVersion || null,
         deployedDate: current?.deployedDate || null,
         deployedBy: current?.deployedBy || null,
         requestedVersion: version,
         action: current ? "upgrade" : "install",
       };
     }));
-    return { componentId, componentName: component.name, version, target, environments: plans };
+    return { componentId, componentName: component.name, sourceRevision: component.currentVersion, version, target, environments: plans };
   }
 
   async function runs() {
@@ -279,11 +280,11 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     const currentFile = await github("/contents/manifests/release.json?ref=main");
     const currentManifest = JSON.parse(Buffer.from(currentFile.content.replace(/\s/g, ""), "base64").toString("utf8"));
     const environmentRows = plan.environments.map((environment) =>
-      `| ${environment.name} | ${environment.currentVersion ? `v${environment.currentVersion}` : "Not deployed"} | v${version} | ${environment.action === "upgrade" ? "Upgrade" : "New deployment"} | ${environment.deployedDate || "N/A"} | ${environment.deployedBy || "N/A"} |`
+      `| ${environment.name} | ${environment.currentComponentRevision ? `r${environment.currentComponentRevision}` : "Not deployed"} | ${environment.currentVersion ? `v${environment.currentVersion}` : "N/A"} | r${plan.sourceRevision} | v${version} | ${environment.action === "upgrade" ? "Upgrade" : "New deployment"} | ${environment.deployedDate || "N/A"} | ${environment.deployedBy || "N/A"} |`
     );
     const environmentDiff = plan.environments.flatMap((environment) => [
-      `- ${environment.name}: ${environment.currentVersion ? `v${environment.currentVersion}` : "Not deployed"}`,
-      `+ ${environment.name}: v${version} (${environment.action === "upgrade" ? "upgrade" : "new deployment"})`,
+      `- ${environment.name}: ${environment.currentVersion ? `revision r${environment.currentComponentRevision || "unknown"}, package v${environment.currentVersion}` : "Not deployed"}`,
+      `+ ${environment.name}: source revision r${plan.sourceRevision}, package v${version} (${environment.action === "upgrade" ? "upgrade" : "new deployment"})`,
     ]);
     const issue = await github("/issues", {
       method: "POST",
@@ -300,8 +301,8 @@ export function createServices(env = process.env, fetchImpl = fetch) {
           `**Release path:** ${target}`,
           `**Notes:** ${String(notes || "None").replace(/\|/g, "\\|")}`,
           "",
-          `| Environment | Currently deployed | Requested | Action | Last deployed | Deployed by |`,
-          `| --- | --- | --- | --- | --- | --- |`,
+          `| Environment | Destination revision | Current package | Source revision | Requested package | Action | Last deployed | Deployed by |`,
+          `| --- | --- | --- | --- | --- | --- | --- | --- |`,
           ...environmentRows,
           "",
           "## Deployment diff",

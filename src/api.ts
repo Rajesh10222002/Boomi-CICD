@@ -54,6 +54,7 @@ export interface DeployRequest {
 export interface DeploymentPlan {
   componentId: string;
   componentName: string;
+  sourceRevision: number;
   version: string;
   target: DeployRequest["target"];
   environments: Array<{
@@ -61,6 +62,7 @@ export interface DeploymentPlan {
     name: string;
     exists: boolean;
     currentVersion: string | null;
+    currentComponentRevision: string | number | null;
     deployedDate: string | null;
     deployedBy: string | null;
     requestedVersion: string;

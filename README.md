@@ -117,10 +117,11 @@ closes the audit issue. Approval is never available inside the dashboard.
 
 Before confirmation, the backend queries the selected component ID in each
 target Boomi environment. The UI and audit issue show **Upgrade** with the
-currently deployed and requested package versions when the process exists, or
-**New deployment** when it does not. Both operations still wait for the target
-environment's GitHub approval; Boomi activates the new package and retains the
-previous deployment history.
+current destination component revision/package and the current Build source
+revision/requested package when the process exists, or **New deployment** when
+it does not. Both operations still wait for the target environment's GitHub
+approval; Boomi activates the new package and retains the previous deployment
+history.
 
 Audit issues use Boomi component metadata, revision numbers, deployment
 timestamps, and package versions. They intentionally do not export or compare

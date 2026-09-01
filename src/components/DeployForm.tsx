@@ -151,9 +151,9 @@ export function DeployForm({ components, loading, error, onStarted }: DeployForm
               {plan?.environments.map((environment) => (
                 <div key={environment.key}>
                   <strong>{environment.name}</strong>
-                  <span>{environment.currentVersion ? `v${environment.currentVersion}` : "Not deployed"}</span>
+                  <span>{environment.currentVersion ? `r${environment.currentComponentRevision || "?"} / v${environment.currentVersion}` : "Not deployed"}</span>
                   <ArrowRight size={14} />
-                  <span>v{environment.requestedVersion}</span>
+                  <span>r{plan.sourceRevision} / v{environment.requestedVersion}</span>
                   <small>{environment.action === "upgrade" ? "Upgrade" : "New deployment"}</small>
                 </div>
               ))}

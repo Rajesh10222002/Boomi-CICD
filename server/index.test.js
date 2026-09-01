@@ -93,7 +93,7 @@ test("deploy creates an audit issue and commits a one-component release", async 
       const query = JSON.parse(options.body);
       const filters = query.QueryFilter.expression.nestedExpression;
       const environmentId = filters.find((filter) => filter.property === "environmentId").argument[0];
-      return Response.json({ result: environmentId === "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d" ? [{ componentId: "new-id", packageVersion: "1.5", active: true, deployedDate: "2026-08-30T10:00:00Z", deployedBy: "deployer@example.com" }] : [] });
+      return Response.json({ result: environmentId === "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d" ? [{ componentId: "new-id", componentVersion: 2, packageVersion: "1.5", active: true, deployedDate: "2026-08-30T10:00:00Z", deployedBy: "deployer@example.com" }] : [] });
     }
     if (url.includes("/contents/manifests/release.json?ref=main")) return Response.json({ sha: "file-sha", content: Buffer.from(JSON.stringify(currentManifest)).toString("base64") });
     if (url.endsWith("/issues")) return Response.json({ number: 12, html_url: "https://github.example/issues/12" }, { status: 201 });
@@ -111,13 +111,13 @@ test("deploy creates an audit issue and commits a one-component release", async 
   assert.equal(result.actionsUrl, "https://github.com/owner/repo/actions/workflows/deploy.yml");
   const issueRequest = requests.find((request) => request.url.endsWith("/issues"));
   const issueBody = JSON.parse(issueRequest.options.body).body;
-  assert.match(issueBody, /\| DV \| v1\.5 \| v2\.1 \| Upgrade \|/);
-  assert.match(issueBody, /\| PD \| Not deployed \| v2\.1 \| New deployment \|/);
+  assert.match(issueBody, /\| DV \| r2 \| v1\.5 \| r3 \| v2\.1 \| Upgrade \|/);
+  assert.match(issueBody, /\| PD \| Not deployed \| N\/A \| r3 \| v2\.1 \| New deployment \|/);
   assert.match(issueBody, /\*\*Boomi revision:\*\* 3/);
   assert.match(issueBody, /\*\*Folder \/ branch:\*\* Shared \/ main/);
   assert.match(issueBody, /2026-08-30T10:00:00Z \| deployer@example\.com/);
-  assert.match(issueBody, /- DV: v1\.5/);
-  assert.match(issueBody, /\+ PD: v2\.1 \(new deployment\)/);
+  assert.match(issueBody, /- DV: revision r2, package v1\.5/);
+  assert.match(issueBody, /\+ PD: source revision r3, package v2\.1 \(new deployment\)/);
   const update = requests.find((request) => request.url.endsWith("/contents/manifests/release.json") && request.options.method === "PUT");
   const updateBody = JSON.parse(update.options.body);
   const release = JSON.parse(Buffer.from(updateBody.content, "base64").toString("utf8"));
