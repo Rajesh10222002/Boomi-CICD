@@ -2,6 +2,30 @@ name: Deploy Boomi release
 
 on:
   workflow_dispatch:
+    inputs:
+      component:
+        description: Process to package and deploy
+        required: true
+        type: choice
+        options:
+          - Fetch and Process User Data
+      version:
+        description: New immutable package version (for example 1.1)
+        required: true
+        type: string
+      target:
+        description: Destination path
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - dev-and-production
+      notes:
+        description: Release notes
+        required: false
+        default: Dashboard deployment
+        type: string
   push:
     branches: [main]
     paths: ['manifests/release.json']
@@ -10,6 +34,9 @@ env:
   BOOMI_ACCOUNT_ID: ${{ secrets.BOOMI_ACCOUNT_ID }}
   BOOMI_USERNAME: ${{ secrets.BOOMI_USERNAME }}
   BOOMI_TOKEN: ${{ secrets.BOOMI_TOKEN }}
+  BOOMI_COMPONENT: ${{ inputs.component || '' }}
+  BOOMI_PACKAGE_VERSION: ${{ inputs.version || '' }}
+  BOOMI_RELEASE_NOTES: ${{ inputs.notes || '' }}
 
 jobs:
   package:
@@ -46,6 +73,7 @@ jobs:
   deploy-prod:
     runs-on: ubuntu-latest
     needs: deploy-dev
+    if: github.event_name == 'push' || inputs.target == 'dev-and-production'
     environment: production
     steps:
       - uses: actions/checkout@v4

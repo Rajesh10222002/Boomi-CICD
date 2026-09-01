@@ -69,6 +69,52 @@ Git records the reviewed release manifest and deployment workflow.
 10. In the **Actions** tab, run **Deploy Boomi release** and approve the Prod job
     after the Dev deployment is verified.
 
+## Deployment Console
+
+The React dashboard shows current Boomi deployments, starts reviewed releases,
+and follows GitHub Actions runs. Its Express backend is the only layer that
+calls Boomi or GitHub. Tokens never enter the browser bundle or an API response.
+
+Install and build it:
+
+```powershell
+npm install
+npm run build
+```
+
+Set process-level variables in the current PowerShell window. Values entered
+through `Read-Host` are not written to a file:
+
+```powershell
+$env:BOOMI_ACCOUNT_ID = Read-Host "Boomi account ID"
+$env:BOOMI_USERNAME = Read-Host "Boomi platform user email"
+$env:BOOMI_TOKEN = Read-Host "Boomi API token" -MaskInput
+$env:GITHUB_TOKEN = Read-Host "GitHub fine-grained token" -MaskInput
+$env:GITHUB_OWNER = "Rajesh10222002"
+$env:GITHUB_REPO = "Boomi-CICD"
+$env:DASHBOARD_USERNAME = Read-Host "Dashboard username"
+$env:DASHBOARD_PASSWORD = Read-Host "Dashboard password" -MaskInput
+npm start
+```
+
+Open `http://127.0.0.1:3000` and enter the dashboard username and password in
+the browser prompt. The server binds only to your computer. The GitHub token
+must be a fine-grained token limited to this repository with Actions read/write
+access. Do not reuse your GitHub password.
+
+For guided startup, run `./scripts/start-dashboard.ps1` instead. It prompts for
+the same values, masks both tokens and the dashboard password, and keeps every
+value only in the server process memory.
+
+The process picker shows every current Boomi process. Processes not listed in
+`manifests/release.json` are marked **Not approved** and cannot be deployed.
+`dev` deploys only to Dev. `dev-and-production` deploys to Dev and then waits
+for approval in GitHub before promoting the same package to Production.
+Approval is never available inside the dashboard.
+
+For frontend development, run `npm run dev:server` and `npm run dev` in separate
+terminals. Both development servers bind to `127.0.0.1`.
+
 ## Release Manifest
 
 `manifests/release.json` is the code-reviewed release decision. Commit every

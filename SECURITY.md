@@ -1,0 +1,21 @@
+# Security
+
+The dashboard browser calls only same-origin `/api` endpoints. The Express
+backend holds Boomi and GitHub credentials in process environment variables and
+never returns or logs token values.
+
+- Keep `BOOMI_ACCOUNT_ID`, `BOOMI_USERNAME`, `BOOMI_TOKEN`, `GITHUB_TOKEN`,
+  `GITHUB_OWNER`, and `GITHUB_REPO` server-side.
+- Never prefix credentials with `VITE_`, `REACT_APP_`, or `NEXT_PUBLIC_`.
+- Use a fine-grained GitHub token restricted to this repository with Actions
+  read/write access.
+- Set `DASHBOARD_USERNAME` and a strong `DASHBOARD_PASSWORD`. Every page and API
+  endpoint requires HTTP Basic authentication.
+- The local server binds to `127.0.0.1`. Put it behind company SSO and HTTPS
+  before making it reachable from another machine.
+- Production approval remains in GitHub's audited environment review screen.
+  The dashboard intentionally cannot approve, reject, delete, or undeploy.
+- The deployment endpoint is limited to 10 requests per minute per client.
+
+Never commit credential files, tokens, generated `packages.json`, or dashboard
+build output. Rotate a token immediately if it is exposed.

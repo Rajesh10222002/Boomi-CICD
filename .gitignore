@@ -11,6 +11,11 @@ __pycache__/
 venv/
 .venv/
 
+# Dashboard
+node_modules/
+dist/
+*.tsbuildinfo
+
 # Editors
 .vscode/
 .idea/

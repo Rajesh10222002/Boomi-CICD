@@ -71,6 +71,29 @@ def load_manifest():
     return manifest
 
 
+def selected_components(manifest):
+    selected_name = os.environ.get("BOOMI_COMPONENT", "").strip()
+    if not selected_name:
+        return manifest["components"]
+
+    matches = [
+        component
+        for component in manifest["components"]
+        if component["name"] == selected_name
+    ]
+    if not matches:
+        fail("Selected component is not present in manifests/release.json: " + selected_name)
+    return matches
+
+
+def release_version(component):
+    return os.environ.get("BOOMI_PACKAGE_VERSION", "").strip() or component["version"]
+
+
+def release_notes(manifest):
+    return os.environ.get("BOOMI_RELEASE_NOTES", "").strip() or manifest.get("notes", "")
+
+
 class BoomiClient:
     def __init__(self, credentials):
         self.base_url = (
@@ -137,16 +160,17 @@ def check(client):
 def package(client):
     manifest = load_manifest()
     package_ids = {}
-    for component in manifest["components"]:
+    for component in selected_components(manifest):
+        version = release_version(component)
         print(
-            "Packaging " + component["name"] + " at version " + component["version"] + "..."
+            "Packaging " + component["name"] + " at version " + version + "..."
         )
         response = client.post(
             "PackagedComponent",
             {
                 "componentId": component["id"],
-                "packageVersion": component["version"],
-                "notes": manifest.get("notes", ""),
+                "packageVersion": version,
+                "notes": release_notes(manifest),
             },
         )
         package_id = response.get("packageId")
@@ -169,7 +193,7 @@ def deploy(client, target):
     if not isinstance(package_ids, dict):
         fail("packages.json must contain an object mapping component names to package IDs.")
 
-    expected_names = [component["name"] for component in manifest["components"]]
+    expected_names = [component["name"] for component in selected_components(manifest)]
     if set(package_ids) != set(expected_names):
         fail("packages.json does not match the components in the release manifest.")
 
@@ -181,7 +205,7 @@ def deploy(client, target):
             {
                 "environmentId": environment_id,
                 "packageId": package_ids[name],
-                "notes": manifest.get("notes", ""),
+                "notes": release_notes(manifest),
             },
         )
         deployment_id = response.get("deploymentId")
