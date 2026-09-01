@@ -86,14 +86,14 @@ test("deploy creates an audit issue and commits a one-component release", async 
   };
   const fetchImpl = async (url, options = {}) => {
     requests.push({ url, options });
-    if (url.endsWith("/ComponentMetadata/query")) return Response.json({ result: [{ componentId: "new-id", name: "New Process", type: "process", version: 3, deleted: false }] });
+    if (url.endsWith("/ComponentMetadata/query")) return Response.json({ result: [{ componentId: "new-id", name: "New Process", type: "process", version: 3, deleted: false, folderName: "Shared", branchName: "main", modifiedDate: "2026-08-31T09:00:00Z", modifiedBy: "builder@example.com" }] });
     if (url.endsWith("/Environment/query")) return Response.json({ result: [{ id: "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d", name: "DV", classification: "TEST" }, { id: "bf3c615f-7767-4381-8829-b25358f3538f", name: "PD", classification: "PROD" }] });
     if (url.endsWith("/PackagedComponent/query")) return Response.json({ result: [] });
     if (url.endsWith("/DeployedPackage/query")) {
       const query = JSON.parse(options.body);
       const filters = query.QueryFilter.expression.nestedExpression;
       const environmentId = filters.find((filter) => filter.property === "environmentId").argument[0];
-      return Response.json({ result: environmentId === "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d" ? [{ componentId: "new-id", packageVersion: "1.5", active: true, deployedDate: "2026-08-30T10:00:00Z" }] : [] });
+      return Response.json({ result: environmentId === "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d" ? [{ componentId: "new-id", packageVersion: "1.5", active: true, deployedDate: "2026-08-30T10:00:00Z", deployedBy: "deployer@example.com" }] : [] });
     }
     if (url.includes("/contents/manifests/release.json?ref=main")) return Response.json({ sha: "file-sha", content: Buffer.from(JSON.stringify(currentManifest)).toString("base64") });
     if (url.endsWith("/issues")) return Response.json({ number: 12, html_url: "https://github.example/issues/12" }, { status: 201 });
@@ -112,6 +112,9 @@ test("deploy creates an audit issue and commits a one-component release", async 
   const issueBody = JSON.parse(issueRequest.options.body).body;
   assert.match(issueBody, /\| DV \| v1\.5 \| v2\.1 \| Upgrade \|/);
   assert.match(issueBody, /\| PD \| Not deployed \| v2\.1 \| New deployment \|/);
+  assert.match(issueBody, /\*\*Boomi revision:\*\* 3/);
+  assert.match(issueBody, /\*\*Folder \/ branch:\*\* Shared \/ main/);
+  assert.match(issueBody, /2026-08-30T10:00:00Z \| deployer@example\.com/);
   assert.match(issueBody, /- DV: v1\.5/);
   assert.match(issueBody, /\+ PD: v2\.1 \(new deployment\)/);
   const update = requests.find((request) => request.url.endsWith("/contents/manifests/release.json") && request.options.method === "PUT");

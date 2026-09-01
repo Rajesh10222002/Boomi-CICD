@@ -158,11 +158,15 @@ export function createServices(env = process.env, fetchImpl = fetch) {
       });
       return records
         .filter((record) => record.type === "process" && record.deleted !== true)
-        .map(({ componentId, name, type, version }) => ({
+        .map(({ componentId, name, type, version, folderName, branchName, modifiedDate, modifiedBy }) => ({
           componentId,
           name,
           type,
           currentVersion: version,
+          folderName: folderName || "unknown",
+          branchName: branchName || "main",
+          modifiedDate: modifiedDate || null,
+          modifiedBy: modifiedBy || "unknown",
         }))
         .sort((left, right) => left.name.localeCompare(right.name));
     });
@@ -234,6 +238,8 @@ export function createServices(env = process.env, fetchImpl = fetch) {
         name: environment?.name || key.toUpperCase(),
         exists: Boolean(current),
         currentVersion: current?.packageVersion || null,
+        deployedDate: current?.deployedDate || null,
+        deployedBy: current?.deployedBy || null,
         requestedVersion: version,
         action: current ? "upgrade" : "install",
       };
@@ -273,7 +279,7 @@ export function createServices(env = process.env, fetchImpl = fetch) {
     const currentFile = await github("/contents/manifests/release.json?ref=main");
     const currentManifest = JSON.parse(Buffer.from(currentFile.content.replace(/\s/g, ""), "base64").toString("utf8"));
     const environmentRows = plan.environments.map((environment) =>
-      `| ${environment.name} | ${environment.currentVersion ? `v${environment.currentVersion}` : "Not deployed"} | v${version} | ${environment.action === "upgrade" ? "Upgrade" : "New deployment"} |`
+      `| ${environment.name} | ${environment.currentVersion ? `v${environment.currentVersion}` : "Not deployed"} | v${version} | ${environment.action === "upgrade" ? "Upgrade" : "New deployment"} | ${environment.deployedDate || "N/A"} | ${environment.deployedBy || "N/A"} |`
     );
     const environmentDiff = plan.environments.flatMap((environment) => [
       `- ${environment.name}: ${environment.currentVersion ? `v${environment.currentVersion}` : "Not deployed"}`,
@@ -288,11 +294,14 @@ export function createServices(env = process.env, fetchImpl = fetch) {
           "",
           `**Process:** ${component.name}`,
           `**Component ID:** ${component.componentId}`,
+          `**Boomi revision:** ${component.currentVersion}`,
+          `**Folder / branch:** ${component.folderName} / ${component.branchName}`,
+          `**Last modified:** ${component.modifiedDate || "unknown"} by ${component.modifiedBy}`,
           `**Release path:** ${target}`,
           `**Notes:** ${String(notes || "None").replace(/\|/g, "\\|")}`,
           "",
-          `| Environment | Currently deployed | Requested | Action |`,
-          `| --- | --- | --- | --- |`,
+          `| Environment | Currently deployed | Requested | Action | Last deployed | Deployed by |`,
+          `| --- | --- | --- | --- | --- | --- |`,
           ...environmentRows,
           "",
           "## Deployment diff",

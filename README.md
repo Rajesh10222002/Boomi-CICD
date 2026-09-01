@@ -122,6 +122,11 @@ currently deployed and requested package versions when the process exists, or
 environment's GitHub approval; Boomi activates the new package and retains the
 previous deployment history.
 
+Audit issues use Boomi component metadata, revision numbers, deployment
+timestamps, and package versions. They intentionally do not export or compare
+Boomi component XML. Process source remains in Boomi, and exported source can
+contain implementation or configuration details that do not belong in GitHub.
+
 For frontend development, run `npm run dev:server` and `npm run dev` in separate
 terminals. Both development servers bind to `127.0.0.1`.
 

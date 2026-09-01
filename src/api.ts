@@ -9,6 +9,10 @@ export interface Component {
   name: string;
   type: string;
   currentVersion: number;
+  folderName: string;
+  branchName: string;
+  modifiedDate: string | null;
+  modifiedBy: string;
 }
 
 export interface Deployment {
@@ -57,6 +61,8 @@ export interface DeploymentPlan {
     name: string;
     exists: boolean;
     currentVersion: string | null;
+    deployedDate: string | null;
+    deployedBy: string | null;
     requestedVersion: string;
     action: "install" | "upgrade";
   }>;
