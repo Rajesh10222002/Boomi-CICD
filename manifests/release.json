@@ -1,15 +1,16 @@
 {
-  "notes": "Release Aggregate Prompt Messages 1.2",
+  "notes": "Release Fetch and Map Users 1.0",
   "target": "dev-and-production",
+  "issueNumber": 3,
   "environments": {
     "dev": "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d",
     "prod": "bf3c615f-7767-4381-8829-b25358f3538f"
   },
   "components": [
     {
-      "name": "Aggregate Prompt Messages",
-      "id": "67368715-c9bf-4360-9a21-718644bc7830",
-      "version": "1.2"
+      "name": "Fetch and Map Users",
+      "id": "1ae7f2a1-c852-4293-9713-7ce229d3e0f3",
+      "version": "1.0"
     }
   ]
 }
