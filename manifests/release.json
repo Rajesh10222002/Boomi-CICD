@@ -1,7 +1,7 @@
 {
-  "notes": "Release Fetch and Map Users 1.3",
+  "notes": "Release Fetch and Map Users 1.4",
   "target": "dev",
-  "issueNumber": 6,
+  "issueNumber": 7,
   "environments": {
     "dev": "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d",
     "prod": "bf3c615f-7767-4381-8829-b25358f3538f"
@@ -10,7 +10,7 @@
     {
       "name": "Fetch and Map Users",
       "id": "1ae7f2a1-c852-4293-9713-7ce229d3e0f3",
-      "version": "1.3"
+      "version": "1.4"
     }
   ]
 }
