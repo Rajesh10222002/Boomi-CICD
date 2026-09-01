@@ -46,6 +46,7 @@ env:
   BOOMI_PACKAGE_VERSION: ${{ inputs.version || '' }}
   BOOMI_RELEASE_NOTES: ${{ inputs.notes || '' }}
   BOOMI_RELEASE_TARGET: ${{ inputs.target || '' }}
+  GH_REPO: ${{ github.repository }}
 
 jobs:
   prepare:

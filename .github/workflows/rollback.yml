@@ -47,6 +47,7 @@ env:
   BOOMI_ROLLBACK_COMPONENT_NAME: ${{ inputs.component_name }}
   BOOMI_ROLLBACK_COMPONENT_ID: ${{ inputs.component_id }}
   GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
 
 jobs:
   wait-for-approval:
