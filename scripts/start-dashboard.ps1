@@ -70,8 +70,13 @@ Set-SecretVariableIfMissing "BOOMI_TOKEN" "Boomi API token" 20
 Set-SecretVariableIfMissing "GITHUB_TOKEN" "GitHub fine-grained token" 20
 Set-TextVariableIfMissing "GITHUB_OWNER" "GitHub owner" "Rajesh10222002"
 Set-TextVariableIfMissing "GITHUB_REPO" "GitHub repository" "Boomi-CICD"
-Set-TextVariableIfMissing "DASHBOARD_USERNAME" "Choose a dashboard username"
-Set-SecretVariableIfMissing "DASHBOARD_PASSWORD" "Choose a dashboard password"
+
+if ($env:DASHBOARD_DISABLE_AUTH -eq "true") {
+    Write-Warning "DASHBOARD_DISABLE_AUTH is set. Skipping the dashboard login prompt."
+} else {
+    Set-TextVariableIfMissing "DASHBOARD_USERNAME" "Choose a dashboard username"
+    Set-SecretVariableIfMissing "DASHBOARD_PASSWORD" "Choose a dashboard password"
+}
 
 Set-Location $root
 

@@ -127,6 +127,11 @@ down to a local machine. They are only ever injected into a workflow run on
 GitHub's runners. Local credentials must be entered locally, whether through
 `.env` or the interactive prompts above.
 
+Set `DASHBOARD_DISABLE_AUTH=true` in `.env` to skip the login prompt entirely.
+Only do this for a single trusted user on a single machine; the server still
+only listens on `127.0.0.1`, but with this set, no credential is checked at
+all before triggering a deployment.
+
 The process picker shows every current Boomi process. Starting a deployment
 shows an in-dashboard confirmation, opens an audit issue with the before and
 requested release values, and records the selection in `manifests/release.json`.

@@ -14,6 +14,10 @@ never returns or logs token values.
   read, Contents read/write, and Issues read/write access.
 - Set `DASHBOARD_USERNAME` and a strong `DASHBOARD_PASSWORD`. Every page and API
   endpoint requires HTTP Basic authentication.
+- `DASHBOARD_DISABLE_AUTH=true` removes that login entirely. It is an explicit
+  opt-in for a single trusted user on a single machine; anything that can reach
+  `127.0.0.1` on that machine can then trigger deployments with no credential
+  check. Leave it unset (the default) unless you understand that tradeoff.
 - The local server binds to `127.0.0.1`. Put it behind company SSO and HTTPS
   before making it reachable from another machine.
 - Production approval remains in GitHub's audited environment review screen.

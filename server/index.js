@@ -39,6 +39,10 @@ function safeEqual(left, right) {
 
 function basicAuth(env) {
   return (request, response, next) => {
+    if (env.DASHBOARD_DISABLE_AUTH === "true") {
+      return next();
+    }
+
     let username;
     let password;
     try {
@@ -534,8 +538,12 @@ function asyncRoute(handler, status = 200) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const env = process.env;
-  required("DASHBOARD_USERNAME", env);
-  required("DASHBOARD_PASSWORD", env);
+  if (env.DASHBOARD_DISABLE_AUTH === "true") {
+    console.warn("::warning::DASHBOARD_DISABLE_AUTH is set. The dashboard has no login and anyone reaching 127.0.0.1 on this machine can trigger deployments.");
+  } else {
+    required("DASHBOARD_USERNAME", env);
+    required("DASHBOARD_PASSWORD", env);
+  }
   const port = Number(env.PORT || 3000);
   createApp({ env }).listen(port, "127.0.0.1", () => {
     console.log(`Boomi Deployment Console: http://127.0.0.1:${port}`);
