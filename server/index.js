@@ -5,6 +5,14 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 
+// Load a local .env file (gitignored) so credentials do not need to be re-entered each session.
+// Missing file is not an error; the shell environment or start-dashboard.ps1 prompts still apply.
+try {
+  process.loadEnvFile();
+} catch {
+  // No .env file present.
+}
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE_TTL = 5 * 60 * 1000;
 const WORKFLOW_FILE = "deploy.yml";

@@ -6,6 +6,9 @@ never returns or logs token values.
 
 - Keep `BOOMI_ACCOUNT_ID`, `BOOMI_USERNAME`, `BOOMI_TOKEN`, `GITHUB_TOKEN`,
   `GITHUB_OWNER`, and `GITHUB_REPO` server-side.
+- Local credentials may be stored in `.env` (copy `.env.example`) or entered
+  through interactive prompts. `.env` is gitignored and only read from disk by
+  your own machine; it is never sent to GitHub or read by GitHub Actions.
 - Never prefix credentials with `VITE_`, `REACT_APP_`, or `NEXT_PUBLIC_`.
 - Use a fine-grained GitHub token restricted to this repository with Actions
   read, Contents read/write, and Issues read/write access.

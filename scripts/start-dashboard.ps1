@@ -36,6 +36,34 @@ function Set-SecretVariableIfMissing {
     }
 }
 
+function Import-DotEnvFile {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return
+    }
+
+    Write-Host "Loading credentials from $Path"
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -eq "" -or $line.StartsWith("#")) {
+            return
+        }
+        $separatorIndex = $line.IndexOf("=")
+        if ($separatorIndex -lt 1) {
+            return
+        }
+        $key = $line.Substring(0, $separatorIndex).Trim()
+        $value = $line.Substring($separatorIndex + 1).Trim().Trim('"')
+        if ($value -ne "") {
+            [Environment]::SetEnvironmentVariable($key, $value, "Process")
+        }
+    }
+}
+
+$root = Split-Path -Parent $PSScriptRoot
+Import-DotEnvFile (Join-Path $root ".env")
+
 Set-TextVariableIfMissing "BOOMI_ACCOUNT_ID" "Boomi account ID"
 Set-TextVariableIfMissing "BOOMI_USERNAME" "Boomi login email"
 Set-SecretVariableIfMissing "BOOMI_TOKEN" "Boomi API token" 20
@@ -45,7 +73,6 @@ Set-TextVariableIfMissing "GITHUB_REPO" "GitHub repository" "Boomi-CICD"
 Set-TextVariableIfMissing "DASHBOARD_USERNAME" "Choose a dashboard username"
 Set-SecretVariableIfMissing "DASHBOARD_PASSWORD" "Choose a dashboard password"
 
-$root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 Write-Host "Checking Boomi API access..."

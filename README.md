@@ -82,8 +82,20 @@ npm install
 npm run build
 ```
 
-Set process-level variables in the current PowerShell window. Values entered
-through `Read-Host` are not written to a file:
+**Recommended: store credentials in `.env` once.** Copy the template, fill in
+real values, then start the dashboard without retyping anything each session:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+npm start
+```
+
+`.env` is listed in `.gitignore` and is never read by GitHub Actions. Never
+commit it or paste its contents into chat, issues, or pull requests.
+
+Alternatively, set process-level variables in the current PowerShell window.
+Values entered through `Read-Host` are not written to a file:
 
 ```powershell
 $env:BOOMI_ACCOUNT_ID = Read-Host "Boomi account ID"
@@ -103,9 +115,17 @@ must be a fine-grained token limited to this repository with Actions read,
 Contents read/write, and Issues read/write access. Do not reuse your
 GitHub password.
 
-For guided startup, run `./scripts/start-dashboard.ps1` instead. It prompts for
-the same values, masks both tokens and the dashboard password, and keeps every
-value only in the server process memory.
+For guided startup, run `./scripts/start-dashboard.ps1` instead. It loads
+`.env` automatically if present, otherwise prompts for the same values (both
+tokens and the dashboard password are masked), and it verifies Boomi and
+GitHub API access before starting.
+
+Why not read `BOOMI_TOKEN`/`GITHUB_TOKEN` from the repository's GitHub Actions
+secrets instead? GitHub deliberately does not expose secret values through any
+API, including to the repository owner, so there is no way to pull them back
+down to a local machine. They are only ever injected into a workflow run on
+GitHub's runners. Local credentials must be entered locally, whether through
+`.env` or the interactive prompts above.
 
 The process picker shows every current Boomi process. Starting a deployment
 shows an in-dashboard confirmation, opens an audit issue with the before and
