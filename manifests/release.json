@@ -1,7 +1,7 @@
 {
   "notes": "Release Fetch and Map Users 1.6",
   "target": "dev",
-  "issueNumber": 10,
+  "issueNumber": 12,
   "environments": {
     "dev": "e424a5d0-c9c8-4b92-97c1-b0bd6e51dd4d",
     "prod": "bf3c615f-7767-4381-8829-b25358f3538f"
